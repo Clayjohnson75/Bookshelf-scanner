@@ -341,12 +341,12 @@
     <!-- HEIC to JPEG conversion libraries -->
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js" 
             onerror="console.error('Failed to load heic2any library')"></script>
-    <!-- Alternative HEIC conversion library -->
-    <script src="https://cdn.jsdelivr.net/npm/heic-convert@1.2.4/dist/heic-convert.min.js" 
-            onerror="console.error('Failed to load heic-convert library')"></script>
-    <!-- Another alternative -->
-    <script src="https://unpkg.com/heic-js@1.0.0/dist/heic-js.min.js" 
-            onerror="console.error('Failed to load heic-js library')"></script>
-    <script src="script.js?v=21"></script>
+    <!-- Alternative HEIC conversion library with different CDN -->
+    <script src="https://unpkg.com/heic-convert@1.2.4/dist/heic-convert.min.js" 
+            onerror="console.error('Failed to load heic-convert library from unpkg')"></script>
+    <!-- Try another CDN for heic-convert -->
+    <script src="https://cdn.skypack.dev/heic-convert@1.2.4" 
+            onerror="console.error('Failed to load heic-convert library from skypack')"></script>
+    <script src="script.js?v=22"></script>
 </body>
 </html>

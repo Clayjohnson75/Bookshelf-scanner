@@ -558,6 +558,66 @@ class BookshelfScanner {
         }
     }
 
+    // Method 7: Try alternative heic-convert with different CDN
+    async convertWithHeicConvertAlt(file) {
+        console.log('Trying alternative heic-convert library...');
+        if (typeof heicConvert === 'undefined') {
+            throw new Error('alternative heic-convert library not available');
+        }
+        
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const jpegBuffer = await heicConvert({
+                buffer: arrayBuffer,
+                format: 'JPEG',
+                quality: 0.9
+            });
+            
+            const blob = new Blob([jpegBuffer], { type: 'image/jpeg' });
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = () => reject(new Error('Failed to read converted JPEG'));
+                reader.readAsDataURL(blob);
+            });
+        } catch (error) {
+            throw new Error('alternative heic-convert conversion failed: ' + error.message);
+        }
+    }
+
+    // Method 8: Try to create a JPEG from HEIC using File API
+    async convertWithFileAPI(file) {
+        console.log('Trying File API conversion...');
+        
+        try {
+            // Try to read the file as a blob and create a new JPEG blob
+            const arrayBuffer = await file.arrayBuffer();
+            
+            // Create a new blob with JPEG MIME type
+            const jpegBlob = new Blob([arrayBuffer], { type: 'image/jpeg' });
+            
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    // Try to load it as an image to validate
+                    const img = new Image();
+                    img.onload = () => {
+                        console.log('File API conversion successful');
+                        resolve(e.target.result);
+                    };
+                    img.onerror = () => {
+                        reject(new Error('File API conversion failed - invalid JPEG'));
+                    };
+                    img.src = e.target.result;
+                };
+                reader.onerror = () => reject(new Error('Failed to read file with File API'));
+                reader.readAsDataURL(jpegBlob);
+            });
+        } catch (error) {
+            throw new Error('File API conversion failed: ' + error.message);
+        }
+    }
+
     initializeElements() {
         // Tab elements
         this.cameraTab = document.getElementById('cameraTab');
@@ -1067,13 +1127,15 @@ class BookshelfScanner {
                 const conversionMethods = [
                     () => this.convertWithHeic2any(file),
                     () => this.convertWithHeicConvert(file),
+                    () => this.convertWithHeicConvertAlt(file),
                     () => this.convertWithHeicJs(file),
+                    () => this.convertWithFileAPI(file),
                     ...(isDeployed ? [] : [() => this.convertWithServerSide(file)]), // Skip server-side in deployed
                     () => this.convertWithCanvas(file),
                     () => this.convertWithBrowserNative(file)
                 ];
                 
-                const methodNames = ['heic2any', 'heic-convert', 'heic-js', ...(isDeployed ? [] : ['server-side']), 'canvas', 'browser-native'];
+                const methodNames = ['heic2any', 'heic-convert', 'heic-convert-alt', 'heic-js', 'file-api', ...(isDeployed ? [] : ['server-side']), 'canvas', 'browser-native'];
             
             for (let i = 0; i < conversionMethods.length; i++) {
                 try {
