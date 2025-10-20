@@ -436,8 +436,44 @@ class BookshelfScanner {
             }
         }
         
-        // Method 2: Try alternative conversion approaches
-        console.log('Trying alternative conversion approaches...');
+        // Method 2: Try alternative HEIC libraries
+        console.log('Trying alternative HEIC libraries...');
+        
+        // Try heic-convert library
+        if (typeof heicConvert !== 'undefined') {
+            try {
+                console.log('Trying heic-convert library...');
+                const arrayBuffer = await file.arrayBuffer();
+                const jpegBuffer = await heicConvert({
+                    buffer: arrayBuffer,
+                    format: 'JPEG',
+                    quality: 0.9
+                });
+                
+                const blob = new Blob([jpegBuffer], { type: 'image/jpeg' });
+                const result = await this.blobToDataURL(blob);
+                console.log('✅ heic-convert library successful');
+                return result;
+            } catch (heicConvertError) {
+                console.log('heic-convert library failed:', heicConvertError.message);
+            }
+        }
+        
+        // Try heic-js library
+        if (typeof HEIC !== 'undefined') {
+            try {
+                console.log('Trying heic-js library...');
+                const arrayBuffer = await file.arrayBuffer();
+                const jpegBuffer = HEIC.decode(arrayBuffer);
+                
+                const blob = new Blob([jpegBuffer], { type: 'image/jpeg' });
+                const result = await this.blobToDataURL(blob);
+                console.log('✅ heic-js library successful');
+                return result;
+            } catch (heicJsError) {
+                console.log('heic-js library failed:', heicJsError.message);
+            }
+        }
         
         // Method 3: Try to use the file as-is (sometimes works)
         try {
