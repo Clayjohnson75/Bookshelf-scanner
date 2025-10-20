@@ -393,6 +393,80 @@ class BookshelfScanner {
         }
     }
 
+    // Simple, reliable HEIC to JPEG conversion using server-side processing
+    async convertHEICToJPEG(file) {
+        console.log('Converting HEIC to JPEG using server-side processing...');
+        
+        try {
+            // First try client-side conversion as fallback
+            if (typeof heic2any !== 'undefined') {
+                console.log('Trying client-side conversion first...');
+                try {
+                    const jpegBlob = await heic2any({
+                        blob: file,
+                        toType: 'image/jpeg',
+                        quality: 0.9
+                    });
+                    
+                    const blob = Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob;
+                    
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            console.log('✅ Client-side HEIC conversion successful');
+                            resolve(e.target.result);
+                        };
+                        reader.onerror = () => reject(new Error('Failed to read converted JPEG'));
+                        reader.readAsDataURL(blob);
+                    });
+                } catch (clientError) {
+                    console.log('Client-side conversion failed, trying server-side...');
+                }
+            }
+            
+            // Server-side conversion using Vercel API
+            console.log('Trying server-side conversion...');
+            const fileDataUrl = await this.fileToDataURL(file);
+            
+            const response = await fetch('/api/convert-heic', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    file: fileDataUrl
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Server conversion failed: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                console.log('✅ Server-side HEIC conversion successful');
+                return result.jpegDataUrl;
+            } else {
+                throw new Error(result.error || 'Server conversion failed');
+            }
+            
+        } catch (error) {
+            console.error('HEIC conversion error:', error);
+            throw new Error(`HEIC conversion failed: ${error.message}`);
+        }
+    }
+
+    // Helper method to convert file to data URL
+    fileToDataURL(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsDataURL(file);
+        });
+    }
+
     // Method 1: Try heic2any library (original method)
     async convertWithHeic2any(file) {
         if (typeof heic2any === 'undefined') {
@@ -1115,79 +1189,21 @@ class BookshelfScanner {
     async convertFileToJPEG(file) {
         console.log('Converting file:', file.name, 'Type:', file.type);
         
-        // Handle HEIC files specially - convert them automatically
-        if (file.type === 'image/heic' || file.type === 'image/heif' || 
-            file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
-            console.log('HEIC file detected, attempting conversion to JPEG...');
-            
-            // Detect if we're in deployed environment (no local server)
-            const isDeployed = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
-            
-                // Try multiple conversion methods
-                const conversionMethods = [
-                    () => this.convertWithHeic2any(file),
-                    () => this.convertWithHeicConvert(file),
-                    () => this.convertWithHeicConvertAlt(file),
-                    () => this.convertWithHeicJs(file),
-                    () => this.convertWithFileAPI(file),
-                    ...(isDeployed ? [] : [() => this.convertWithServerSide(file)]), // Skip server-side in deployed
-                    () => this.convertWithCanvas(file),
-                    () => this.convertWithBrowserNative(file)
-                ];
+            // Handle HEIC files specially - convert them automatically
+            if (file.type === 'image/heic' || file.type === 'image/heif' || 
+                file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+                console.log('HEIC file detected, attempting conversion to JPEG...');
                 
-                const methodNames = ['heic2any', 'heic-convert', 'heic-convert-alt', 'heic-js', 'file-api', ...(isDeployed ? [] : ['server-side']), 'canvas', 'browser-native'];
-            
-            for (let i = 0; i < conversionMethods.length; i++) {
+                // Simple, reliable HEIC conversion
                 try {
-                    console.log(`Trying conversion method ${i + 1} (${methodNames[i]})...`);
-                    const result = await conversionMethods[i]();
-                    console.log(`✅ HEIC conversion successful with method ${i + 1} (${methodNames[i]})`);
+                    const result = await this.convertHEICToJPEG(file);
+                    console.log('✅ HEIC conversion successful');
                     return result;
-            } catch (error) {
-                    console.log(`❌ Conversion method ${i + 1} (${methodNames[i]}) failed:`, error.message);
-                    console.log('Full error:', error);
-                    
-                    if (i === conversionMethods.length - 1) {
-                        // All methods failed
-                        console.error('❌ All HEIC conversion methods failed');
-                        console.log('Available libraries:', {
-                            heic2any: typeof heic2any !== 'undefined',
-                            window: typeof window !== 'undefined',
-                            fetch: typeof fetch !== 'undefined',
-                            isDeployed: isDeployed
-                        });
-                        
-                        // Only try server fallback if not deployed
-                        if (!isDeployed) {
-                            try {
-                                console.log('🔄 Trying direct server upload as fallback...');
-                                const formData = new FormData();
-                                formData.append('heicFile', file);
-                                
-                                const response = await fetch('/api/convert-heic-direct', {
-                                    method: 'POST',
-                                    body: formData
-                                });
-                                
-                                if (response.ok) {
-                                    const result = await response.json();
-                                    if (result.success) {
-                                        console.log('✅ Direct server upload successful');
-                                        return result.jpegDataUrl;
-                                    }
-                                }
-                            } catch (fallbackError) {
-                                console.log('❌ Direct server upload also failed:', fallbackError);
-                            }
-                        }
-                        
-                            // Last resort: HEIC files cannot be processed in deployed environment
-                            console.log('🔄 HEIC conversion failed in deployed environment');
-                            throw new Error(this.getHEICErrorMessage());
-                    }
+                } catch (error) {
+                    console.error('❌ HEIC conversion failed:', error);
+                    throw new Error(this.getHEICErrorMessage());
                 }
             }
-        }
         
         // For non-HEIC files, process normally
         return new Promise((resolve, reject) => {
