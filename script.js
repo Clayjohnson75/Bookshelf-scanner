@@ -393,80 +393,39 @@ class BookshelfScanner {
         }
     }
 
-    // Simple, reliable HEIC to JPEG conversion using server-side processing
+    // Simple, reliable HEIC to JPEG conversion using client-side processing
     async convertHEICToJPEG(file) {
-        console.log('Converting HEIC to JPEG using server-side processing...');
+        console.log('Converting HEIC to JPEG using client-side processing...');
         
         try {
-            // First try client-side conversion as fallback
+            // Try client-side conversion with heic2any
             if (typeof heic2any !== 'undefined') {
-                console.log('Trying client-side conversion first...');
-                try {
-                    const jpegBlob = await heic2any({
-                        blob: file,
-                        toType: 'image/jpeg',
-                        quality: 0.9
-                    });
-                    
-                    const blob = Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob;
-                    
-                    return new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                            console.log('✅ Client-side HEIC conversion successful');
-                            resolve(e.target.result);
-                        };
-                        reader.onerror = () => reject(new Error('Failed to read converted JPEG'));
-                        reader.readAsDataURL(blob);
-                    });
-                } catch (clientError) {
-                    console.log('Client-side conversion failed, trying server-side...');
-                }
-            }
-            
-            // Server-side conversion using Vercel API
-            console.log('Trying server-side conversion...');
-            const fileDataUrl = await this.fileToDataURL(file);
-            
-            const response = await fetch('/api/convert-heic', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    file: fileDataUrl
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Server conversion failed: ${response.status}`);
-            }
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                console.log('✅ Server-side HEIC conversion successful');
-                return result.jpegDataUrl;
+                console.log('Trying client-side conversion...');
+                const jpegBlob = await heic2any({
+                    blob: file,
+                    toType: 'image/jpeg',
+                    quality: 0.9
+                });
+                
+                const blob = Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob;
+                
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        console.log('✅ Client-side HEIC conversion successful');
+                        resolve(e.target.result);
+                    };
+                    reader.onerror = () => reject(new Error('Failed to read converted JPEG'));
+                    reader.readAsDataURL(blob);
+                });
             } else {
-                // Server-side conversion not available, fall back to error message
-                console.log('Server-side conversion not available:', result.error);
-                throw new Error(result.error || 'Server conversion failed');
+                throw new Error('HEIC conversion library not available');
             }
             
         } catch (error) {
             console.error('HEIC conversion error:', error);
             throw new Error(`HEIC conversion failed: ${error.message}`);
         }
-    }
-
-    // Helper method to convert file to data URL
-    fileToDataURL(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
-            reader.onerror = () => reject(new Error('Failed to read file'));
-            reader.readAsDataURL(file);
-        });
     }
 
     // Method 1: Try heic2any library (original method)
