@@ -436,43 +436,28 @@ class BookshelfScanner {
             }
         }
         
-        // Method 2: Try alternative HEIC libraries
-        console.log('Trying alternative HEIC libraries...');
-        
-        // Try heic-convert library
-        if (typeof heicConvert !== 'undefined') {
-            try {
-                console.log('Trying heic-convert library...');
-                const arrayBuffer = await file.arrayBuffer();
-                const jpegBuffer = await heicConvert({
-                    buffer: arrayBuffer,
-                    format: 'JPEG',
-                    quality: 0.9
-                });
-                
-                const blob = new Blob([jpegBuffer], { type: 'image/jpeg' });
-                const result = await this.blobToDataURL(blob);
-                console.log('✅ heic-convert library successful');
-                return result;
-            } catch (heicConvertError) {
-                console.log('heic-convert library failed:', heicConvertError.message);
+        // Method 2: Try server-side conversion (most reliable)
+        console.log('Trying server-side HEIC conversion...');
+        try {
+            const dataUrl = await this.fileToDataURL(file);
+            const response = await fetch('/api/convert-heic', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ imageData: dataUrl })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    console.log('✅ Server-side HEIC conversion successful');
+                    return result.dataUrl;
+                }
             }
-        }
-        
-        // Try heic-js library
-        if (typeof HEIC !== 'undefined') {
-            try {
-                console.log('Trying heic-js library...');
-                const arrayBuffer = await file.arrayBuffer();
-                const jpegBuffer = HEIC.decode(arrayBuffer);
-                
-                const blob = new Blob([jpegBuffer], { type: 'image/jpeg' });
-                const result = await this.blobToDataURL(blob);
-                console.log('✅ heic-js library successful');
-                return result;
-            } catch (heicJsError) {
-                console.log('heic-js library failed:', heicJsError.message);
-            }
+            console.log('Server-side conversion failed:', response.status);
+        } catch (serverError) {
+            console.log('Server-side conversion error:', serverError.message);
         }
         
         // Method 3: Try to use the file as-is (sometimes works)
@@ -530,6 +515,16 @@ class BookshelfScanner {
             });
         } catch (canvasError) {
             console.log('Canvas-based conversion failed:', canvasError.message);
+        }
+        
+        // Method 4: Last resort - try to use HEIC directly (sometimes AI can handle it)
+        console.log('🔄 Last resort: attempting to use HEIC file directly...');
+        try {
+            const dataUrl = await this.fileToDataURL(file);
+            console.log('⚠️ Using HEIC file directly (may work with AI)');
+            return dataUrl;
+        } catch (directError) {
+            console.log('Using HEIC directly failed:', directError.message);
         }
         
         // All methods failed
