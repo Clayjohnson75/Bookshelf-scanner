@@ -211,6 +211,45 @@ header p {
     font-size: 1.2rem;
 }
 
+/* Connection Status */
+.connection-status {
+    position: absolute;
+    top: 1rem;
+    right: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.status-indicator {
+    font-size: 0.6rem;
+    transition: color 0.3s ease;
+}
+
+.status-indicator.online {
+    color: #28a745;
+}
+
+.status-indicator.offline {
+    color: #dc3545;
+}
+
+.status-indicator.syncing {
+    color: #ffc107;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.status-text {
+    font-weight: 500;
+}
+
 /* Main Section Styles */
 .main-section {
     min-height: 60vh;

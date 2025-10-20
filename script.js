@@ -15,6 +15,7 @@ class AuthManager {
         this.auth = window.auth;
         this.setupAuthListeners();
         this.setupAuthUI();
+        this.setupConnectionStatus();
     }
 
     setupAuthListeners() {
@@ -183,6 +184,49 @@ class AuthManager {
                 return error.message;
         }
     }
+    
+    setupConnectionStatus() {
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        
+        if (!statusIndicator || !statusText) return;
+        
+        // Monitor Firebase connection status
+        if (window.db) {
+            // Check connection status periodically
+            setInterval(() => {
+                this.updateConnectionStatus(statusIndicator, statusText);
+            }, 5000);
+            
+            // Initial status check
+            this.updateConnectionStatus(statusIndicator, statusText);
+        }
+    }
+    
+    updateConnectionStatus(statusIndicator, statusText) {
+        if (!window.db) {
+            statusIndicator.className = 'status-indicator offline';
+            statusText.textContent = 'No Database';
+            return;
+        }
+        
+        // Try a simple Firestore operation to check connection
+        const testDoc = window.doc(window.db, '_test', 'connection');
+        window.getDoc(testDoc)
+            .then(() => {
+                statusIndicator.className = 'status-indicator online';
+                statusText.textContent = 'Online';
+            })
+            .catch((error) => {
+                if (error.message.includes('offline') || error.message.includes('unavailable')) {
+                    statusIndicator.className = 'status-indicator offline';
+                    statusText.textContent = 'Offline';
+                } else {
+                    statusIndicator.className = 'status-indicator syncing';
+                    statusText.textContent = 'Syncing...';
+                }
+            });
+    }
 }
 
 // Enhanced Bookshelf Scanner with Real-time Detection
@@ -243,8 +287,25 @@ class BookshelfScanner {
                 console.log(`Created new user document for: ${this.currentUser.email}`);
             }
         } catch (error) {
-            console.error('Error loading user library:', error);
-            this.library = [];
+            console.error('Error loading user library from Firestore:', error);
+            
+            // Fallback to localStorage if Firestore is unavailable
+            console.log('🔄 Falling back to localStorage...');
+            const libraryKey = `user-${this.currentUser.uid}-library`;
+            const storedLibrary = localStorage.getItem(libraryKey);
+            
+            if (storedLibrary) {
+                this.library = JSON.parse(storedLibrary);
+                console.log(`Loaded ${this.library.length} books from localStorage fallback`);
+            } else {
+                this.library = [];
+                console.log('No library data found in localStorage either');
+            }
+            
+            // Show user-friendly message about offline mode
+            if (error.message.includes('offline') || error.message.includes('unavailable')) {
+                console.log('📱 App is running in offline mode. Data will sync when connection is restored.');
+            }
         }
     }
     
@@ -890,23 +951,26 @@ class BookshelfScanner {
             file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
             console.log('HEIC file detected, attempting conversion to JPEG...');
             
+            // Detect if we're in deployed environment (no local server)
+            const isDeployed = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+            
             // Try multiple conversion methods
             const conversionMethods = [
                 () => this.convertWithHeic2any(file),
-                () => this.convertWithServerSide(file),
+                ...(isDeployed ? [] : [() => this.convertWithServerSide(file)]), // Skip server-side in deployed
                 () => this.convertWithCanvas(file),
                 () => this.convertWithBrowserNative(file)
             ];
             
+            const methodNames = ['heic2any', ...(isDeployed ? [] : ['server-side']), 'canvas', 'browser-native'];
+            
             for (let i = 0; i < conversionMethods.length; i++) {
                 try {
-                    const methodNames = ['heic2any', 'server-side', 'canvas', 'browser-native'];
                     console.log(`Trying conversion method ${i + 1} (${methodNames[i]})...`);
                     const result = await conversionMethods[i]();
                     console.log(`✅ HEIC conversion successful with method ${i + 1} (${methodNames[i]})`);
                     return result;
                 } catch (error) {
-                    const methodNames = ['heic2any', 'server-side', 'canvas', 'browser-native'];
                     console.log(`❌ Conversion method ${i + 1} (${methodNames[i]}) failed:`, error.message);
                     console.log('Full error:', error);
                     
@@ -916,29 +980,32 @@ class BookshelfScanner {
                         console.log('Available libraries:', {
                             heic2any: typeof heic2any !== 'undefined',
                             window: typeof window !== 'undefined',
-                            fetch: typeof fetch !== 'undefined'
+                            fetch: typeof fetch !== 'undefined',
+                            isDeployed: isDeployed
                         });
                         
-                        // Try one more fallback - direct server upload without conversion
-                        try {
-                            console.log('🔄 Trying direct server upload as fallback...');
-                            const formData = new FormData();
-                            formData.append('heicFile', file);
-                            
-                            const response = await fetch('/api/convert-heic-direct', {
-                                method: 'POST',
-                                body: formData
-                            });
-                            
-                            if (response.ok) {
-                                const result = await response.json();
-                                if (result.success) {
-                                    console.log('✅ Direct server upload successful');
-                                    return result.jpegDataUrl;
+                        // Only try server fallback if not deployed
+                        if (!isDeployed) {
+                            try {
+                                console.log('🔄 Trying direct server upload as fallback...');
+                                const formData = new FormData();
+                                formData.append('heicFile', file);
+                                
+                                const response = await fetch('/api/convert-heic-direct', {
+                                    method: 'POST',
+                                    body: formData
+                                });
+                                
+                                if (response.ok) {
+                                    const result = await response.json();
+                                    if (result.success) {
+                                        console.log('✅ Direct server upload successful');
+                                        return result.jpegDataUrl;
+                                    }
                                 }
+                            } catch (fallbackError) {
+                                console.log('❌ Direct server upload also failed:', fallbackError);
                             }
-                        } catch (fallbackError) {
-                            console.log('❌ Direct server upload also failed:', fallbackError);
                         }
                         
                         return Promise.reject(new Error(this.getHEICErrorMessage()));
@@ -2043,14 +2110,14 @@ Be thorough but accurate. Better to include questionable titles with low confide
             });
             
             if (newBooks.length > 0) {
-                const addAll = confirm(
+            const addAll = confirm(
                     `AI found ${newBooks.length} new book${newBooks.length > 1 ? 's' : ''} from your bookshelf:\n\n` +
                     newBooks.map(book => `• ${book.title} by ${book.authors.join(', ')}`).join('\n') +
                     `\n\n${foundBooks.length - newBooks.length > 0 ? `(${foundBooks.length - newBooks.length} book${foundBooks.length - newBooks.length > 1 ? 's' : ''} already in library - skipped)\n\n` : ''}` +
                     'Add these new books to your library?'
-                );
-                
-                if (addAll) {
+            );
+            
+            if (addAll) {
                     // Generate a unique filename for this scan
                     const scanId = Date.now().toString();
                     const photoFileName = `scan_${scanId}.jpg`;
@@ -2560,8 +2627,8 @@ Be thorough but accurate. Better to include questionable titles with low confide
                     ${book.photoURL ? 
                         `<img src="${book.photoURL}" alt="${book.title}" style="width: 120px; height: auto; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" title="Your photo of this book">` : 
                         book.thumbnail ? 
-                            `<img src="${book.thumbnail}" alt="${book.title}" style="width: 120px; height: auto; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">` : 
-                            '<div style="width: 120px; height: 160px; background: #f0f0f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 48px;">📚</div>'
+                        `<img src="${book.thumbnail}" alt="${book.title}" style="width: 120px; height: auto; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">` : 
+                        '<div style="width: 120px; height: 160px; background: #f0f0f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 48px;">📚</div>'
                     }
                 </div>
                 <div style="flex: 1;">
@@ -2947,8 +3014,23 @@ Be thorough but accurate. Better to include questionable titles with low confide
     }
 
     async saveLibrary() {
-        if (!this.currentUser || !window.db) {
-            console.warn('Cannot save library: user not authenticated or database not available');
+        if (!this.currentUser) {
+            console.warn('Cannot save library: user not authenticated');
+            return;
+        }
+        
+        // Always save to localStorage as backup
+        const libraryKey = `user-${this.currentUser.uid}-library`;
+        try {
+            localStorage.setItem(libraryKey, JSON.stringify(this.library));
+            console.log(`Saved ${this.library.length} books to localStorage backup`);
+        } catch (error) {
+            console.error('Failed to save to localStorage:', error);
+        }
+        
+        // Try to save to Firestore if available
+        if (!window.db) {
+            console.warn('Firestore not available, using localStorage only');
             return;
         }
         
@@ -2960,16 +3042,26 @@ Be thorough but accurate. Better to include questionable titles with low confide
                 updatedAt: new Date().toISOString()
             }, { merge: true });
             
-            console.log(`Saved ${this.library.length} books to Firestore for user: ${this.currentUser.email}`);
+            console.log(`✅ Saved ${this.library.length} books to Firestore for user: ${this.currentUser.email}`);
         } catch (error) {
             console.error('Error saving library to Firestore:', error);
-            alert('Failed to save library. Please try again.');
+            
+            if (error.message.includes('offline') || error.message.includes('unavailable')) {
+                console.log('📱 Firestore offline - data saved to localStorage. Will sync when connection is restored.');
+            } else {
+                console.log('⚠️ Firestore error - using localStorage only for now');
+            }
         }
     }
     
     async uploadPhotoToStorage(imageDataUrl, fileName) {
-        if (!this.currentUser || !window.storage) {
-            console.warn('Cannot upload photo: user not authenticated or storage not available');
+        if (!this.currentUser) {
+            console.warn('Cannot upload photo: user not authenticated');
+            return null;
+        }
+        
+        if (!window.storage) {
+            console.warn('Firebase Storage not available, skipping photo upload');
             return null;
         }
         
@@ -2987,10 +3079,17 @@ Be thorough but accurate. Better to include questionable titles with low confide
             // Get download URL
             const downloadURL = await window.getDownloadURL(snapshot.ref);
             
-            console.log(`Photo uploaded successfully: ${downloadURL}`);
+            console.log(`✅ Photo uploaded successfully: ${downloadURL}`);
             return downloadURL;
         } catch (error) {
-            console.error('Error uploading photo:', error);
+            console.error('Error uploading photo to Firebase Storage:', error);
+            
+            if (error.message.includes('offline') || error.message.includes('unavailable')) {
+                console.log('📱 Firebase Storage offline - photo will be uploaded when connection is restored');
+            } else {
+                console.log('⚠️ Firebase Storage error - photo upload failed');
+            }
+            
             return null;
         }
     }
@@ -3074,7 +3173,7 @@ Be thorough but accurate. Better to include questionable titles with low confide
                     <p>No photos scanned yet. Start by scanning your first bookshelf!</p>
                 </div>
             `;
-        } else {
+            } else {
             this.photosGrid.innerHTML = photos.map(photo => `
                 <div class="photo-card">
                     <img src="${photo.url}" alt="Bookshelf photo" onclick="bookshelfScanner.showPhotoViewer('${photo.url}', ${JSON.stringify(photo.books).replace(/"/g, '&quot;')})">
@@ -3180,7 +3279,7 @@ Be thorough but accurate. Better to include questionable titles with low confide
         
         this.showPhotoViewer(book.photoURL, booksFromSamePhoto);
     }
-    
+
     exportLibrary() {
         if (this.library.length === 0) {
             alert('No books to export!');
