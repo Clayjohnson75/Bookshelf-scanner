@@ -552,7 +552,22 @@ class BookshelfScanner {
         // Prevent duplicate click listeners
         if (!this.uploadArea.hasAttribute('data-click-setup')) {
             this.uploadArea.setAttribute('data-click-setup', 'true');
-            this.uploadArea.addEventListener('click', () => this.photoInput.click());
+            this.uploadArea.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Prevent rapid successive clicks
+                if (this.uploadArea.hasAttribute('data-clicking')) {
+                    return;
+                }
+                this.uploadArea.setAttribute('data-clicking', 'true');
+                
+                setTimeout(() => {
+                    this.uploadArea.removeAttribute('data-clicking');
+                }, 100);
+                
+                this.photoInput.click();
+            });
         }
         
         this.analyzePhotoBtn.addEventListener('click', () => this.analyzeUploadedPhoto());
@@ -614,18 +629,24 @@ class BookshelfScanner {
         });
 
         ['dragenter', 'dragover'].forEach(eventName => {
-            this.uploadArea.addEventListener(eventName, () => {
+            this.uploadArea.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 this.uploadArea.classList.add('dragover');
             }, false);
         });
 
         ['dragleave', 'drop'].forEach(eventName => {
-            this.uploadArea.addEventListener(eventName, () => {
+            this.uploadArea.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 this.uploadArea.classList.remove('dragover');
             }, false);
         });
 
         this.uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             const files = e.dataTransfer.files;
             if (files.length > 0 && files[0].type.startsWith('image/')) {
                 this.processUploadedFile(files[0]);
@@ -980,7 +1001,7 @@ class BookshelfScanner {
                     const result = await conversionMethods[i]();
                     console.log(`✅ HEIC conversion successful with method ${i + 1} (${methodNames[i]})`);
                     return result;
-                } catch (error) {
+            } catch (error) {
                     console.log(`❌ Conversion method ${i + 1} (${methodNames[i]}) failed:`, error.message);
                     console.log('Full error:', error);
                     
