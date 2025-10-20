@@ -436,31 +436,8 @@ class BookshelfScanner {
             }
         }
         
-        // Method 2: Try server-side conversion
-        try {
-            console.log('Trying server-side conversion...');
-            const fileDataUrl = await this.fileToDataURL(file);
-            
-            const response = await fetch('/api/convert-heic', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    file: fileDataUrl
-                })
-            });
-            
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success) {
-                    console.log('✅ Server-side HEIC conversion successful');
-                    return result.jpegDataUrl;
-                }
-            }
-        } catch (serverError) {
-            console.log('Server-side conversion failed:', serverError.message);
-        }
+        // Method 2: Try alternative conversion approaches
+        console.log('Trying alternative conversion approaches...');
         
         // Method 3: Try to use the file as-is (sometimes works)
         try {
@@ -481,6 +458,42 @@ class BookshelfScanner {
             });
         } catch (asIsError) {
             console.log('Using HEIC as-is failed:', asIsError.message);
+        }
+        
+        // Method 4: Try canvas-based conversion
+        try {
+            console.log('Trying canvas-based conversion...');
+            const dataUrl = await this.fileToDataURL(file);
+            
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        
+                        // Fill with white background
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        
+                        // Draw the image
+                        ctx.drawImage(img, 0, 0);
+                        
+                        const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                        console.log('✅ Canvas-based conversion successful');
+                        resolve(jpegDataUrl);
+                    } catch (canvasError) {
+                        reject(new Error('Canvas conversion failed'));
+                    }
+                };
+                img.onerror = () => reject(new Error('Failed to load image for canvas conversion'));
+                img.src = dataUrl;
+            });
+        } catch (canvasError) {
+            console.log('Canvas-based conversion failed:', canvasError.message);
         }
         
         // All methods failed
