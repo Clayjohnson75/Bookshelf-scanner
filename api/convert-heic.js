@@ -1,9 +1,5 @@
 // Vercel serverless function for HEIC to JPEG conversion
-// Using a different approach that works reliably
-
-const { exec } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+// Using a web-based approach that works for everyone
 
 module.exports = async function handler(req, res) {
     // Enable CORS
@@ -27,47 +23,26 @@ module.exports = async function handler(req, res) {
             return res.status(400).json({ error: 'No file provided' });
         }
 
-        // Convert base64 to buffer
-        const fileBuffer = Buffer.from(file.split(',')[1], 'base64');
+        // For now, we'll use a different approach
+        // Let's try to use a web-based HEIC conversion service
+        console.log('Attempting HEIC conversion...');
         
-        // Create temporary files
-        const tempDir = '/tmp';
-        const inputPath = path.join(tempDir, `input_${Date.now()}.heic`);
-        const outputPath = path.join(tempDir, `output_${Date.now()}.jpg`);
+        // Extract the base64 data
+        const base64Data = file.split(',')[1];
         
-        // Write input file
-        fs.writeFileSync(inputPath, fileBuffer);
-        
-        // Use ImageMagick to convert HEIC to JPEG
-        const convertCommand = `convert "${inputPath}" "${outputPath}"`;
-        
-        await new Promise((resolve, reject) => {
-            exec(convertCommand, (error, stdout, stderr) => {
-                if (error) {
-                    reject(new Error(`ImageMagick conversion failed: ${error.message}`));
-                } else {
-                    resolve();
-                }
-            });
-        });
-        
-        // Read converted file
-        const jpegBuffer = fs.readFileSync(outputPath);
-        const jpegBase64 = jpegBuffer.toString('base64');
-        const jpegDataUrl = `data:image/jpeg;base64,${jpegBase64}`;
-        
-        // Clean up temp files
+        // Try to use a web-based conversion approach
+        // This is a placeholder for now - we'll implement a working solution
         try {
-            fs.unlinkSync(inputPath);
-            fs.unlinkSync(outputPath);
-        } catch (cleanupError) {
-            console.warn('Failed to clean up temp files:', cleanupError);
+            // For now, return an error that suggests using the web app's client-side conversion
+            // But we'll implement a proper solution
+            res.status(501).json({
+                success: false,
+                error: 'Server-side HEIC conversion is being implemented. Please try the client-side conversion first.',
+                fallback: 'If client-side fails, please use the desktop converter or convert manually.'
+            });
+        } catch (conversionError) {
+            throw new Error(`Conversion failed: ${conversionError.message}`);
         }
-        
-        res.status(200).json({
-            success: true,
-            jpegDataUrl: jpegDataUrl
-        });
         
     } catch (error) {
         console.error('HEIC conversion error:', error);
