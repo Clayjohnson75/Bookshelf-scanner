@@ -338,7 +338,7 @@
         window.deleteObject = deleteObject;
     </script>
     
-    <!-- HEIC to JPEG conversion libraries -->
+    <!-- HEIC to JPEG conversion - using the most reliable library -->
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js" 
             onerror="console.error('Failed to load heic2any library')"></script>
     <!-- Alternative HEIC library -->
@@ -347,6 +347,9 @@
     <!-- Another alternative -->
     <script src="https://cdn.jsdelivr.net/npm/heic-js@1.0.0/dist/heic-js.min.js" 
             onerror="console.error('Failed to load heic-js library')"></script>
-    <script src="script.js?v=31"></script>
+    <!-- WebP conversion library -->
+    <script src="https://cdn.jsdelivr.net/npm/webp-converter@2.2.3/dist/webp-converter.min.js" 
+            onerror="console.error('Failed to load webp-converter library')"></script>
+    <script src="script.js?v=32"></script>
 </body>
 </html>

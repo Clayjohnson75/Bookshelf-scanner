@@ -393,25 +393,30 @@ class BookshelfScanner {
         }
     }
 
-    // Enhanced HEIC to JPEG conversion with multiple fallback methods
+    // Ultra-robust HEIC to JPEG conversion with maximum compatibility
     async convertHEICToJPEG(file) {
-        console.log('Converting HEIC to JPEG with enhanced methods...');
+        console.log('🔄 Starting ultra-robust HEIC conversion...');
         
-        // Method 1: Try heic2any with different options
+        // Method 1: Try heic2any with maximum compatibility settings
         if (typeof heic2any !== 'undefined') {
-            console.log('Trying enhanced heic2any conversion...');
+            console.log('Trying heic2any with maximum compatibility...');
             try {
-                // Try different quality settings and formats
+                // Try every possible combination
                 const options = [
                     { toType: 'image/jpeg', quality: 0.9 },
                     { toType: 'image/jpeg', quality: 0.8 },
                     { toType: 'image/jpeg', quality: 0.7 },
-                    { toType: 'image/png' }, // Sometimes PNG works when JPEG doesn't
+                    { toType: 'image/jpeg', quality: 0.6 },
+                    { toType: 'image/jpeg', quality: 0.5 },
+                    { toType: 'image/png' },
+                    { toType: 'image/webp' },
+                    { toType: 'image/jpeg', quality: 0.9, multiple: false },
+                    { toType: 'image/jpeg', quality: 0.8, multiple: false },
                 ];
                 
                 for (let i = 0; i < options.length; i++) {
                     try {
-                        console.log(`Trying option ${i + 1}:`, options[i]);
+                        console.log(`Trying heic2any option ${i + 1}:`, options[i]);
                         const result = await heic2any({
                             blob: file,
                             ...options[i]
@@ -419,15 +424,15 @@ class BookshelfScanner {
                         
                         const blob = Array.isArray(result) ? result[0] : result;
                         
-                        // Convert to JPEG if it's PNG
-                        if (options[i].toType === 'image/png') {
-                            const jpegBlob = await this.convertPNGToJPEG(blob);
+                        // Convert to JPEG if it's PNG or WebP
+                        if (options[i].toType === 'image/png' || options[i].toType === 'image/webp') {
+                            const jpegBlob = await this.convertToJPEG(blob);
                             return await this.blobToDataURL(jpegBlob);
                         }
                         
                         return await this.blobToDataURL(blob);
                     } catch (optionError) {
-                        console.log(`Option ${i + 1} failed:`, optionError.message);
+                        console.log(`heic2any option ${i + 1} failed:`, optionError.message);
                         if (i === options.length - 1) throw optionError;
                     }
                 }
@@ -436,47 +441,54 @@ class BookshelfScanner {
             }
         }
         
-        // Method 2: Try server-side conversion with Python (most reliable)
-        console.log('Trying server-side HEIC conversion with Python...');
-        try {
-            const dataUrl = await this.fileToDataURL(file);
-            
-            // Try Vercel Python function first
-            let response = await fetch('/api/convert-heic.py', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ imageData: dataUrl })
-            });
-            
-            // If Vercel fails, try local Python server
-            if (!response.ok && window.location.hostname === 'localhost') {
-                console.log('Vercel function failed, trying local Python server...');
-                response = await fetch('http://localhost:8080/api/convert-heic', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ imageData: dataUrl })
+        // Method 2: Try heic-convert library
+        if (typeof heicConvert !== 'undefined') {
+            console.log('Trying heic-convert library...');
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const jpegBuffer = await heicConvert({
+                    buffer: arrayBuffer,
+                    format: 'JPEG',
+                    quality: 0.9
                 });
+                
+                const blob = new Blob([jpegBuffer], { type: 'image/jpeg' });
+                return await this.blobToDataURL(blob);
+            } catch (heicConvertError) {
+                console.log('heic-convert failed:', heicConvertError.message);
             }
-            
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success) {
-                    console.log('✅ Python server-side HEIC conversion successful');
-                    return result.dataUrl;
-                }
-            }
-            console.log('Python server-side conversion failed:', response.status);
-        } catch (serverError) {
-            console.log('Python server-side conversion error:', serverError.message);
         }
         
-        // Method 3: Try to use the file as-is (sometimes works)
+        // Method 3: Try heic-js library
+        if (typeof HEIC !== 'undefined') {
+            console.log('Trying heic-js library...');
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const jpegBuffer = HEIC.decode(arrayBuffer);
+                
+                const blob = new Blob([jpegBuffer], { type: 'image/jpeg' });
+                return await this.blobToDataURL(blob);
+            } catch (heicJsError) {
+                console.log('heic-js failed:', heicJsError.message);
+            }
+        }
+        
+        // Method 4: Try WebP conversion as intermediate step
+        if (typeof webpConverter !== 'undefined') {
+            console.log('Trying WebP conversion as intermediate step...');
+            try {
+                const dataUrl = await this.fileToDataURL(file);
+                const webpBlob = await webpConverter.convert(dataUrl, 'image/webp');
+                const jpegBlob = await this.convertToJPEG(webpBlob);
+                return await this.blobToDataURL(jpegBlob);
+            } catch (webpError) {
+                console.log('WebP conversion failed:', webpError.message);
+            }
+        }
+        
+        // Method 5: Try to use HEIC directly (sometimes works with newer browsers)
+        console.log('Trying to use HEIC file directly...');
         try {
-            console.log('Trying to use HEIC file as-is...');
             const dataUrl = await this.fileToDataURL(file);
             
             // Test if the browser can load it
@@ -495,9 +507,9 @@ class BookshelfScanner {
             console.log('Using HEIC as-is failed:', asIsError.message);
         }
         
-        // Method 4: Try canvas-based conversion
+        // Method 6: Try canvas-based conversion with different approaches
+        console.log('Trying canvas-based conversion...');
         try {
-            console.log('Trying canvas-based conversion...');
             const dataUrl = await this.fileToDataURL(file);
             
             return new Promise((resolve, reject) => {
@@ -510,16 +522,25 @@ class BookshelfScanner {
                         canvas.width = img.width;
                         canvas.height = img.height;
                         
-                        // Fill with white background
-                        ctx.fillStyle = '#FFFFFF';
-                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        // Try different background colors
+                        const backgrounds = ['#FFFFFF', '#F5F5F5', '#000000'];
                         
-                        // Draw the image
-                        ctx.drawImage(img, 0, 0);
+                        for (let bg of backgrounds) {
+                            try {
+                                ctx.fillStyle = bg;
+                                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                                ctx.drawImage(img, 0, 0);
+                                
+                                const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                                console.log('✅ Canvas-based conversion successful');
+                                resolve(jpegDataUrl);
+                                return;
+                            } catch (canvasError) {
+                                console.log('Canvas conversion failed with background:', bg);
+                            }
+                        }
                         
-                        const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.9);
-                        console.log('✅ Canvas-based conversion successful');
-                        resolve(jpegDataUrl);
+                        reject(new Error('Canvas conversion failed with all backgrounds'));
                     } catch (canvasError) {
                         reject(new Error('Canvas conversion failed'));
                     }
@@ -531,7 +552,7 @@ class BookshelfScanner {
             console.log('Canvas-based conversion failed:', canvasError.message);
         }
         
-        // Method 4: Last resort - try to use HEIC directly (sometimes AI can handle it)
+        // Method 7: Last resort - try to use HEIC directly (sometimes AI can handle it)
         console.log('🔄 Last resort: attempting to use HEIC file directly...');
         try {
             const dataUrl = await this.fileToDataURL(file);
@@ -545,8 +566,8 @@ class BookshelfScanner {
         throw new Error('All HEIC conversion methods failed');
     }
 
-    // Helper method to convert PNG to JPEG
-    async convertPNGToJPEG(pngBlob) {
+    // Helper method to convert any format to JPEG
+    async convertToJPEG(blob) {
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => {
@@ -556,7 +577,7 @@ class BookshelfScanner {
                 canvas.width = img.width;
                 canvas.height = img.height;
                 
-                // Fill with white background (PNG might have transparency)
+                // Fill with white background
                 ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
@@ -565,8 +586,8 @@ class BookshelfScanner {
                 
                 canvas.toBlob(resolve, 'image/jpeg', 0.9);
             };
-            img.onerror = () => reject(new Error('Failed to load PNG'));
-            img.src = URL.createObjectURL(pngBlob);
+            img.onerror = () => reject(new Error('Failed to load image'));
+            img.src = URL.createObjectURL(blob);
         });
     }
 
