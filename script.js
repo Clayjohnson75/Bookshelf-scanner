@@ -1107,7 +1107,14 @@ class BookshelfScanner {
                 imageDataURL = this.uploadedImage.src;
             }
             
+            // Validate the image data URL
+            if (!imageDataURL || !imageDataURL.startsWith('data:image/')) {
+                throw new Error('Invalid image data URL for analysis');
+            }
+            
             console.log('🔍 Starting balanced fast and accurate scanning...');
+            console.log('Image data URL length:', imageDataURL.length);
+            console.log('Image data URL preview:', imageDataURL.substring(0, 100) + '...');
             
                 // Improved scan: 5x4 = 20 sections with overlap for better accuracy
                 const scanResults = await this.performScanPass(imageDataURL, 5, 4, 'High-Accuracy-Overlap');
@@ -1242,7 +1249,12 @@ class BookshelfScanner {
                 });
             };
             
-            img.onerror = () => reject(new Error('Failed to load image for sectioning'));
+            img.onerror = (error) => {
+                console.error('Image loading error:', error);
+                console.error('Image data URL length:', imageDataURL.length);
+                console.error('Image data URL preview:', imageDataURL.substring(0, 200) + '...');
+                reject(new Error('Failed to load image for sectioning'));
+            };
             img.src = imageDataURL;
         });
     }
@@ -1304,7 +1316,12 @@ class BookshelfScanner {
                 });
             };
             
-            img.onerror = () => reject(new Error('Failed to load image for sectioning'));
+            img.onerror = (error) => {
+                console.error('Image loading error:', error);
+                console.error('Image data URL length:', imageDataURL.length);
+                console.error('Image data URL preview:', imageDataURL.substring(0, 200) + '...');
+                reject(new Error('Failed to load image for sectioning'));
+            };
             img.src = imageDataURL;
         });
     }
