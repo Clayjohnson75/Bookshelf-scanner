@@ -91,7 +91,27 @@
         </section>
 
         <main id="mainApp" style="display: none;">
-            <!-- Camera Section -->
+            <!-- Navigation Tabs -->
+            <nav class="main-nav">
+                <div class="nav-tabs">
+                    <button id="scannerTab" class="nav-tab active">
+                        <span class="icon">📷</span>
+                        Scanner
+                    </button>
+                    <button id="libraryTab" class="nav-tab">
+                        <span class="icon">📚</span>
+                        Library
+                    </button>
+                    <button id="photosTab" class="nav-tab">
+                        <span class="icon">📸</span>
+                        Photos
+                    </button>
+                </div>
+            </nav>
+
+            <!-- Scanner Section -->
+            <section id="scannerSection" class="main-section">
+                <!-- Camera Section -->
             <section class="camera-section">
                 <div class="input-options">
                     <div class="input-tabs">
@@ -213,8 +233,11 @@
                 </div>
             </section>
 
+            </section>
+
             <!-- Library Section -->
-            <section class="library-section">
+            <section id="librarySection" class="main-section" style="display: none;">
+                <div class="library-section">
                 <div class="library-header">
                     <div class="library-title-section">
                         <h3>My Library (<span id="bookCount">0</span> books)</h3>
@@ -239,6 +262,22 @@
                         <p>No books scanned yet. Start by scanning your first book!</p>
                     </div>
                 </div>
+                </div>
+            </section>
+
+            <!-- Photos Section -->
+            <section id="photosSection" class="main-section" style="display: none;">
+                <div class="photos-section">
+                    <div class="photos-header">
+                        <h3>My Photos (<span id="photoCount">0</span> photos)</h3>
+                        <p>All your scanned bookshelf photos</p>
+                    </div>
+                    <div class="photos-grid" id="photosGrid">
+                        <div class="empty-photos">
+                            <p>No photos scanned yet. Start by scanning your first bookshelf!</p>
+                        </div>
+                    </div>
+                </div>
             </section>
         </main>
     </div>
@@ -247,6 +286,8 @@
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendEmailVerification } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, collection, doc, setDoc, getDoc, addDoc, query, where, getDocs, orderBy } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
         
         // Your Firebase config
         const firebaseConfig = {
@@ -262,20 +303,41 @@
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
         
-        // Make auth available globally
+        // Make Firebase services available globally
         window.auth = auth;
+        window.db = db;
+        window.storage = storage;
         window.signInWithEmailAndPassword = signInWithEmailAndPassword;
         window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
         window.signOut = signOut;
         window.onAuthStateChanged = onAuthStateChanged;
         window.sendEmailVerification = sendEmailVerification;
+        
+        // Firestore functions
+        window.collection = collection;
+        window.doc = doc;
+        window.setDoc = setDoc;
+        window.getDoc = getDoc;
+        window.addDoc = addDoc;
+        window.query = query;
+        window.where = where;
+        window.getDocs = getDocs;
+        window.orderBy = orderBy;
+        
+        // Storage functions
+        window.ref = ref;
+        window.uploadBytes = uploadBytes;
+        window.getDownloadURL = getDownloadURL;
+        window.deleteObject = deleteObject;
     </script>
     
     <!-- HEIC to JPEG conversion libraries -->
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js" 
             onerror="console.error('Failed to load heic2any library')"></script>
     <!-- Note: heic-convert and heic-js libraries are not available via CDN, skipping them -->
-    <script src="script.js?v=10"></script>
+    <script src="script.js?v=14"></script>
 </body>
 </html>

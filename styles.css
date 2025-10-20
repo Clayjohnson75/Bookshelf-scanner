@@ -157,6 +157,172 @@ header p {
     font-weight: 400;
 }
 
+/* Navigation Styles */
+.main-nav {
+    background: var(--rich-navy);
+    padding: 1rem 0;
+    margin-bottom: 2rem;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    box-shadow: var(--shadow-medium);
+}
+
+.nav-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    max-width: 600px;
+    margin: 0 auto;
+    background: var(--deep-charcoal);
+    padding: 0.5rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-soft);
+}
+
+.nav-tab {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 1rem 2rem;
+    background: transparent;
+    color: var(--text-secondary);
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.nav-tab.active {
+    background: var(--ivory);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-subtle);
+}
+
+.nav-tab:hover:not(.active) {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-tab .icon {
+    font-size: 1.2rem;
+}
+
+/* Main Section Styles */
+.main-section {
+    min-height: 60vh;
+}
+
+.main-section.hidden {
+    display: none !important;
+}
+
+/* Photos Section Styles */
+.photos-section {
+    background: var(--ivory);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    box-shadow: var(--shadow-soft);
+    border: 1px solid var(--border-subtle);
+}
+
+.photos-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.photos-header h3 {
+    font-family: var(--font-serif);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.photos-header p {
+    color: var(--text-secondary);
+    font-size: 1rem;
+}
+
+.photos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.photo-card {
+    background: var(--ivory);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-soft);
+    border: 1px solid var(--border-subtle);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.photo-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-medium);
+}
+
+.photo-card img {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+    margin-bottom: 1rem;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.photo-card img:hover {
+    transform: scale(1.02);
+}
+
+.photo-info {
+    text-align: center;
+}
+
+.photo-info h4 {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.photo-info p {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.photo-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.photo-actions button {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    border-radius: var(--radius);
+}
+
+.empty-photos {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
 /* Authentication Styles */
 .auth-section {
     background: var(--ivory);
@@ -1649,6 +1815,25 @@ section {
     opacity: 1;
 }
 
+.book-card-actions .btn-find-photo {
+    background: var(--gold);
+    color: white;
+    border: none;
+    padding: 0.3rem 0.6rem;
+    border-radius: var(--radius);
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+.book-card-actions .btn-find-photo:hover {
+    background: var(--bronze);
+    transform: scale(1.05);
+}
+
 .btn-remove {
     background: #dc3545;
     border: none;
@@ -1737,6 +1922,28 @@ section {
     object-fit: cover;
     border-radius: 5px;
     margin-bottom: 10px;
+}
+
+.book-card img.user-photo {
+    border: 2px solid var(--gold);
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
+    position: relative;
+}
+
+.book-card img.user-photo::after {
+    content: "📸";
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: var(--gold);
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .book-card h5 {

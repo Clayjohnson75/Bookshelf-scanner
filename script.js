@@ -20,6 +20,7 @@ class AuthManager {
     setupAuthListeners() {
         window.onAuthStateChanged(this.auth, (user) => {
             this.currentUser = user;
+            window.authManager = this; // Make auth manager globally available
             this.updateUI(user);
         });
     }
@@ -188,9 +189,10 @@ class AuthManager {
 class BookshelfScanner {
     constructor() {
         this.stream = null;
-        this.library = JSON.parse(localStorage.getItem('bookLibrary') || '[]');
         this.currentPhotoData = null; // Store current photo for position tracking
         this.detectionActive = false;
+        this.currentUser = null;
+        this.library = [];
         
         // Clean up any existing photo data that might be causing storage issues
         this.cleanupExistingLibraryData();
@@ -200,8 +202,50 @@ class BookshelfScanner {
         
         this.initializeElements();
         this.bindEvents();
-        this.updateLibraryDisplay();
         this.setupDragAndDrop();
+        
+        // Wait for user to be set by auth manager
+        this.waitForUser();
+    }
+    
+    async waitForUser() {
+        // Wait for auth manager to set the current user
+        while (!window.authManager || !window.authManager.currentUser) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        this.currentUser = window.authManager.currentUser;
+        await this.loadUserLibrary();
+        this.updateLibraryDisplay();
+    }
+    
+    async loadUserLibrary() {
+        if (!this.currentUser || !window.db) {
+            this.library = [];
+            return;
+        }
+        
+        try {
+            const userDocRef = window.doc(window.db, 'users', this.currentUser.uid);
+            const userDoc = await window.getDoc(userDocRef);
+            
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                this.library = userData.library || [];
+                console.log(`Loaded ${this.library.length} books from Firestore for user: ${this.currentUser.email}`);
+            } else {
+                // Create user document if it doesn't exist
+                await window.setDoc(userDocRef, {
+                    email: this.currentUser.email,
+                    library: [],
+                    createdAt: new Date().toISOString()
+                });
+                this.library = [];
+                console.log(`Created new user document for: ${this.currentUser.email}`);
+            }
+        } catch (error) {
+            console.error('Error loading user library:', error);
+            this.library = [];
+        }
     }
     
     cleanupExistingLibraryData() {
@@ -295,6 +339,8 @@ class BookshelfScanner {
             reader.readAsDataURL(file);
         });
         
+        console.log('Sending HEIC data to server for conversion...');
+        
         // Send to server for conversion
         const response = await fetch('/api/convert-heic', {
             method: 'POST',
@@ -306,10 +352,19 @@ class BookshelfScanner {
             })
         });
         
+        console.log('Server response status:', response.status);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Server error:', errorText);
+            throw new Error(`Server error: ${response.status} - ${errorText}`);
+        }
+        
         const result = await response.json();
+        console.log('Server conversion result:', result);
         
         if (result.success) {
-            console.log('Server-side conversion successful');
+            console.log('✅ Server-side conversion successful');
             return result.jpegDataUrl;
         } else {
             throw new Error(result.error || 'Server-side conversion failed');
@@ -408,6 +463,18 @@ class BookshelfScanner {
         this.librarySearch = document.getElementById('librarySearch');
         this.exportLibraryBtn = document.getElementById('exportLibrary');
         this.clearLibraryBtn = document.getElementById('clearLibrary');
+
+        // Navigation elements
+        this.scannerTab = document.getElementById('scannerTab');
+        this.libraryTab = document.getElementById('libraryTab');
+        this.photosTab = document.getElementById('photosTab');
+        this.scannerSection = document.getElementById('scannerSection');
+        this.librarySection = document.getElementById('librarySection');
+        this.photosSection = document.getElementById('photosSection');
+
+        // Photos elements
+        this.photosGrid = document.getElementById('photosGrid');
+        this.photoCount = document.getElementById('photoCount');
     }
 
     bindEvents() {
@@ -430,6 +497,11 @@ class BookshelfScanner {
         this.librarySearch.addEventListener('input', (e) => this.filterLibrary(e.target.value));
         this.exportLibraryBtn.addEventListener('click', () => this.exportLibrary());
         this.clearLibraryBtn.addEventListener('click', () => this.clearLibrary());
+
+        // Navigation controls
+        this.scannerTab.addEventListener('click', () => this.switchToSection('scanner'));
+        this.libraryTab.addEventListener('click', () => this.switchToSection('library'));
+        this.photosTab.addEventListener('click', () => this.switchToSection('photos'));
 
         // Search functionality
         this.searchBooksBtn.addEventListener('click', () => this.searchForBook());
@@ -842,8 +914,33 @@ class BookshelfScanner {
                         // All methods failed
                         console.error('❌ All HEIC conversion methods failed');
                         console.log('Available libraries:', {
-                            heic2any: typeof heic2any !== 'undefined'
+                            heic2any: typeof heic2any !== 'undefined',
+                            window: typeof window !== 'undefined',
+                            fetch: typeof fetch !== 'undefined'
                         });
+                        
+                        // Try one more fallback - direct server upload without conversion
+                        try {
+                            console.log('🔄 Trying direct server upload as fallback...');
+                            const formData = new FormData();
+                            formData.append('heicFile', file);
+                            
+                            const response = await fetch('/api/convert-heic-direct', {
+                                method: 'POST',
+                                body: formData
+                            });
+                            
+                            if (response.ok) {
+                                const result = await response.json();
+                                if (result.success) {
+                                    console.log('✅ Direct server upload successful');
+                                    return result.jpegDataUrl;
+                                }
+                            }
+                        } catch (fallbackError) {
+                            console.log('❌ Direct server upload also failed:', fallbackError);
+                        }
+                        
                         return Promise.reject(new Error(this.getHEICErrorMessage()));
                     }
                 }
@@ -1954,7 +2051,14 @@ Be thorough but accurate. Better to include questionable titles with low confide
                 );
                 
                 if (addAll) {
-                    newBooks.forEach(book => this.addBookToLibrary(book));
+                    // Generate a unique filename for this scan
+                    const scanId = Date.now().toString();
+                    const photoFileName = `scan_${scanId}.jpg`;
+                    
+                    // Add each book with the photo
+                    for (const book of newBooks) {
+                        await this.addBookWithPhoto(book, this.currentPhotoData, photoFileName);
+                    }
                 }
             } else {
                 alert(`All ${foundBooks.length} detected book${foundBooks.length > 1 ? 's' : ''} are already in your library!`);
@@ -2269,13 +2373,20 @@ Be thorough but accurate. Better to include questionable titles with low confide
                 return `
                 <div class="book-card" data-book-index="${originalIndex}">
                     <div class="book-card-content" onclick="bookshelfScanner.showBookDetails(${originalIndex})">
-                        ${book.thumbnail ? `<img src="${book.thumbnail}" alt="${book.title}">` : '<div class="no-image">📚</div>'}
+                        ${book.photoURL ? `<img src="${book.photoURL}" alt="${book.title}" class="user-photo">` : 
+                          book.thumbnail ? `<img src="${book.thumbnail}" alt="${book.title}">` : 
+                          '<div class="no-image">📚</div>'}
                         <h5>${book.title}</h5>
                         <p class="author">${book.authors.join(', ')}</p>
                         <p class="isbn">${book.isbn}</p>
                         <p class="date">Added: ${new Date(book.addedDate).toLocaleDateString()}</p>
                     </div>
                     <div class="book-card-actions">
+                        ${book.photoURL ? `
+                            <button class="btn-find-photo" onclick="bookshelfScanner.findBookPhoto(${originalIndex})" title="Find photo this book came from">
+                                <span class="icon">📸</span>
+                            </button>
+                        ` : ''}
                         ${book.photoPosition ? `
                             <button class="btn-locate" onclick="bookshelfScanner.showBookInPhoto(${originalIndex})" title="Show in current photo">
                                 <span class="icon">📍</span>
@@ -2359,6 +2470,11 @@ Be thorough but accurate. Better to include questionable titles with low confide
                         <p class="date">Added: ${new Date(book.addedDate).toLocaleDateString()}</p>
                     </div>
                     <div class="book-card-actions">
+                        ${book.photoURL ? `
+                            <button class="btn-find-photo" onclick="bookshelfScanner.findBookPhoto(${originalIndex})" title="Find photo this book came from">
+                                <span class="icon">📸</span>
+                            </button>
+                        ` : ''}
                         ${book.photoPosition ? `
                             <button class="btn-locate" onclick="bookshelfScanner.showBookInPhoto(${originalIndex})" title="Show in current photo">
                                 <span class="icon">📍</span>
@@ -2441,9 +2557,11 @@ Be thorough but accurate. Better to include questionable titles with low confide
             
             <div style="display: flex; gap: 20px; margin-bottom: 20px;">
                 <div style="flex-shrink: 0;">
-                    ${book.thumbnail ? 
-                        `<img src="${book.thumbnail}" alt="${book.title}" style="width: 120px; height: auto; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">` : 
-                        '<div style="width: 120px; height: 160px; background: #f0f0f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 48px;">📚</div>'
+                    ${book.photoURL ? 
+                        `<img src="${book.photoURL}" alt="${book.title}" style="width: 120px; height: auto; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" title="Your photo of this book">` : 
+                        book.thumbnail ? 
+                            `<img src="${book.thumbnail}" alt="${book.title}" style="width: 120px; height: auto; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">` : 
+                            '<div style="width: 120px; height: 160px; background: #f0f0f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 48px;">📚</div>'
                     }
                 </div>
                 <div style="flex: 1;">
@@ -2828,27 +2946,241 @@ Be thorough but accurate. Better to include questionable titles with low confide
         alert(`Successfully replaced with "${newBookData.title}" by ${newBookData.authors.join(', ')}`);
     }
 
-    saveLibrary() {
+    async saveLibrary() {
+        if (!this.currentUser || !window.db) {
+            console.warn('Cannot save library: user not authenticated or database not available');
+            return;
+        }
+        
         try {
-            localStorage.setItem('bookLibrary', JSON.stringify(this.library));
+            const userDocRef = window.doc(window.db, 'users', this.currentUser.uid);
+            await window.setDoc(userDocRef, {
+                email: this.currentUser.email,
+                library: this.library,
+                updatedAt: new Date().toISOString()
+            }, { merge: true });
+            
+            console.log(`Saved ${this.library.length} books to Firestore for user: ${this.currentUser.email}`);
         } catch (error) {
-            if (error.name === 'QuotaExceededError') {
-                console.error('Storage quota exceeded. Attempting to clean up library data...');
-                this.cleanupExistingLibraryData();
-                try {
-                    localStorage.setItem('bookLibrary', JSON.stringify(this.library));
-                    console.log('Library saved after cleanup');
-                } catch (retryError) {
-                    console.error('Failed to save library even after cleanup:', retryError);
-                    alert('Unable to save library - storage is full. Consider exporting your library and clearing some data.');
-                }
-            } else {
-                console.error('Error saving library:', error);
-                throw error;
-            }
+            console.error('Error saving library to Firestore:', error);
+            alert('Failed to save library. Please try again.');
         }
     }
-
+    
+    async uploadPhotoToStorage(imageDataUrl, fileName) {
+        if (!this.currentUser || !window.storage) {
+            console.warn('Cannot upload photo: user not authenticated or storage not available');
+            return null;
+        }
+        
+        try {
+            // Convert data URL to blob
+            const response = await fetch(imageDataUrl);
+            const blob = await response.blob();
+            
+            // Create storage reference
+            const photoRef = window.ref(window.storage, `users/${this.currentUser.uid}/photos/${fileName}`);
+            
+            // Upload the photo
+            const snapshot = await window.uploadBytes(photoRef, blob);
+            
+            // Get download URL
+            const downloadURL = await window.getDownloadURL(snapshot.ref);
+            
+            console.log(`Photo uploaded successfully: ${downloadURL}`);
+            return downloadURL;
+        } catch (error) {
+            console.error('Error uploading photo:', error);
+            return null;
+        }
+    }
+    
+    async addBookWithPhoto(bookData, photoDataUrl, photoFileName) {
+        // Upload photo first
+        const photoURL = await this.uploadPhotoToStorage(photoDataUrl, photoFileName);
+        
+        // Add book to library with photo URL
+        const bookWithPhoto = {
+            ...bookData,
+            id: Date.now().toString(),
+            addedDate: new Date().toISOString(),
+            photoURL: photoURL,
+            photoFileName: photoFileName
+        };
+        
+        this.library.push(bookWithPhoto);
+        await this.saveLibrary();
+        this.updateLibraryDisplay();
+        
+        return bookWithPhoto;
+    }
+    
+    // Navigation Methods
+    switchToSection(section) {
+        // Remove active class from all tabs
+        this.scannerTab.classList.remove('active');
+        this.libraryTab.classList.remove('active');
+        this.photosTab.classList.remove('active');
+        
+        // Hide all sections
+        this.scannerSection.style.display = 'none';
+        this.librarySection.style.display = 'none';
+        this.photosSection.style.display = 'none';
+        
+        // Show selected section and activate tab
+        switch(section) {
+            case 'scanner':
+                this.scannerTab.classList.add('active');
+                this.scannerSection.style.display = 'block';
+                break;
+            case 'library':
+                this.libraryTab.classList.add('active');
+                this.librarySection.style.display = 'block';
+                this.updateLibraryDisplay();
+                break;
+            case 'photos':
+                this.photosTab.classList.add('active');
+                this.photosSection.style.display = 'block';
+                this.updatePhotosDisplay();
+                break;
+        }
+    }
+    
+    updatePhotosDisplay() {
+        if (!this.photosGrid) return;
+        
+        // Get unique photos from library
+        const photoMap = new Map();
+        this.library.forEach(book => {
+            if (book.photoURL && book.photoFileName) {
+                if (!photoMap.has(book.photoURL)) {
+                    photoMap.set(book.photoURL, {
+                        url: book.photoURL,
+                        fileName: book.photoFileName,
+                        books: [],
+                        scanDate: book.addedDate
+                    });
+                }
+                photoMap.get(book.photoURL).books.push(book);
+            }
+        });
+        
+        const photos = Array.from(photoMap.values());
+        this.photoCount.textContent = photos.length;
+        
+        if (photos.length === 0) {
+            this.photosGrid.innerHTML = `
+                <div class="empty-photos">
+                    <p>No photos scanned yet. Start by scanning your first bookshelf!</p>
+                </div>
+            `;
+        } else {
+            this.photosGrid.innerHTML = photos.map(photo => `
+                <div class="photo-card">
+                    <img src="${photo.url}" alt="Bookshelf photo" onclick="bookshelfScanner.showPhotoViewer('${photo.url}', ${JSON.stringify(photo.books).replace(/"/g, '&quot;')})">
+                    <div class="photo-info">
+                        <h4>Scan from ${new Date(photo.scanDate).toLocaleDateString()}</h4>
+                        <p>${photo.books.length} book${photo.books.length > 1 ? 's' : ''} detected</p>
+                        <p>${photo.fileName}</p>
+                    </div>
+                    <div class="photo-actions">
+                        <button class="btn btn-primary" onclick="bookshelfScanner.showPhotoViewer('${photo.url}', ${JSON.stringify(photo.books).replace(/"/g, '&quot;')})">
+                            <span class="icon">👁️</span>
+                            View Details
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+    
+    showPhotoViewer(photoURL, books) {
+        const modal = document.createElement('div');
+        modal.className = 'photo-viewer-modal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        `;
+        
+        modal.innerHTML = `
+            <div style="max-width: 90vw; max-height: 90vh; position: relative;">
+                <button class="modal-close" style="
+                    position: absolute;
+                    top: -40px;
+                    right: 0;
+                    background: white;
+                    border: none;
+                    border-radius: 50%;
+                    width: 40px;
+                    height: 40px;
+                    font-size: 24px;
+                    cursor: pointer;
+                    color: #333;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                ">×</button>
+                
+                <img src="${photoURL}" style="max-width: 100%; max-height: 100%; border-radius: 8px;">
+                
+                <div style="
+                    position: absolute;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    background: linear-gradient(transparent, rgba(0,0,0,0.8));
+                    color: white;
+                    padding: 2rem;
+                    border-radius: 0 0 8px 8px;
+                ">
+                    <h3 style="margin: 0 0 1rem 0;">Books Found in This Photo (${books.length})</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;">
+                        ${books.map(book => `
+                            <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px;">
+                                <h4 style="margin: 0 0 0.5rem 0; font-size: 0.9rem;">${book.title}</h4>
+                                <p style="margin: 0; font-size: 0.8rem; opacity: 0.8;">${book.authors.join(', ')}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Close modal functionality
+        modal.querySelector('.modal-close').addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+        
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                document.body.removeChild(modal);
+            }
+        });
+        
+        document.body.appendChild(modal);
+    }
+    
+    findBookPhoto(bookIndex) {
+        const book = this.library[bookIndex];
+        if (!book || !book.photoURL) {
+            alert('No photo available for this book.');
+            return;
+        }
+        
+        // Find all books from the same photo
+        const booksFromSamePhoto = this.library.filter(b => b.photoURL === book.photoURL);
+        
+        this.showPhotoViewer(book.photoURL, booksFromSamePhoto);
+    }
+    
     exportLibrary() {
         if (this.library.length === 0) {
             alert('No books to export!');

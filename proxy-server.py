@@ -30,6 +30,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_openai_request()
         elif self.path == '/api/convert-heic':
             self.handle_heic_conversion()
+        elif self.path == '/api/convert-heic-direct':
+            self.handle_heic_direct_upload()
         else:
             self.send_error(404, "Not Found")
     
@@ -241,6 +243,125 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 
         except Exception as e:
             print(f"HEIC conversion error: {str(e)}")
+            response_data = json.dumps({
+                'success': False,
+                'error': str(e)
+            })
+            
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(response_data.encode('utf-8'))
+
+    def handle_heic_direct_upload(self):
+        """Handle direct HEIC file upload and conversion"""
+        try:
+            import cgi
+            
+            # Parse multipart form data
+            form = cgi.FieldStorage(
+                fp=self.rfile,
+                headers=self.headers,
+                environ={'REQUEST_METHOD': 'POST'}
+            )
+            
+            if 'heicFile' not in form:
+                raise Exception("No HEIC file provided")
+            
+            file_item = form['heicFile']
+            if not file_item.filename:
+                raise Exception("No filename provided")
+            
+            print(f"Received direct HEIC upload: {file_item.filename}")
+            
+            # Read the file data
+            heic_data = file_item.file.read()
+            
+            # Try Pillow conversion first
+            try:
+                from PIL import Image
+                import io
+                
+                # Open HEIC image
+                heic_image = Image.open(io.BytesIO(heic_data))
+                
+                # Convert to RGB (in case it's in a different mode)
+                if heic_image.mode != 'RGB':
+                    heic_image = heic_image.convert('RGB')
+                
+                # Save as JPEG
+                jpeg_buffer = io.BytesIO()
+                heic_image.save(jpeg_buffer, format='JPEG', quality=95)
+                jpeg_data = jpeg_buffer.getvalue()
+                
+                # Convert to base64
+                jpeg_base64 = base64.b64encode(jpeg_data).decode('utf-8')
+                jpeg_data_url = f"data:image/jpeg;base64,{jpeg_base64}"
+                
+                print("✅ Direct HEIC conversion successful with Pillow")
+                
+                response_data = json.dumps({
+                    'success': True,
+                    'jpegDataUrl': jpeg_data_url
+                })
+                
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(response_data.encode('utf-8'))
+                
+            except Exception as pillow_error:
+                print(f"Pillow conversion failed: {pillow_error}")
+                
+                # Fallback to ImageMagick
+                with tempfile.NamedTemporaryFile(suffix='.heic', delete=False) as temp_heic:
+                    temp_heic.write(heic_data)
+                    temp_heic_path = temp_heic.name
+                
+                temp_jpg_path = temp_heic_path.replace('.heic', '.jpg')
+                
+                try:
+                    # Use ImageMagick to convert
+                    result = subprocess.run([
+                        'convert', temp_heic_path, temp_jpg_path
+                    ], capture_output=True, text=True)
+                    
+                    if result.returncode == 0:
+                        # Read converted JPEG
+                        with open(temp_jpg_path, 'rb') as f:
+                            jpeg_data = f.read()
+                        
+                        # Convert to base64
+                        jpeg_base64 = base64.b64encode(jpeg_data).decode('utf-8')
+                        jpeg_data_url = f"data:image/jpeg;base64,{jpeg_base64}"
+                        
+                        print("✅ Direct HEIC conversion successful with ImageMagick")
+                        
+                        response_data = json.dumps({
+                            'success': True,
+                            'jpegDataUrl': jpeg_data_url
+                        })
+                        
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'application/json')
+                        self.send_header('Access-Control-Allow-Origin', '*')
+                        self.end_headers()
+                        self.wfile.write(response_data.encode('utf-8'))
+                    else:
+                        raise Exception(f"ImageMagick conversion failed: {result.stderr}")
+                    
+                    # Clean up temp files
+                    os.unlink(temp_heic_path)
+                    os.unlink(temp_jpg_path)
+                    
+                except Exception as magick_error:
+                    print(f"ImageMagick conversion failed: {magick_error}")
+                    raise Exception(f"Both Pillow and ImageMagick conversion failed. Pillow: {pillow_error}, ImageMagick: {magick_error}")
+                
+        except Exception as e:
+            print(f"Direct HEIC upload error: {str(e)}")
             response_data = json.dumps({
                 'success': False,
                 'error': str(e)
