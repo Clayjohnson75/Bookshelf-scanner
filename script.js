@@ -548,7 +548,13 @@ class BookshelfScanner {
 
         // Photo upload
         this.photoInput.addEventListener('change', (e) => this.handlePhotoUpload(e));
-        this.uploadArea.addEventListener('click', () => this.photoInput.click());
+        
+        // Prevent duplicate click listeners
+        if (!this.uploadArea.hasAttribute('data-click-setup')) {
+            this.uploadArea.setAttribute('data-click-setup', 'true');
+            this.uploadArea.addEventListener('click', () => this.photoInput.click());
+        }
+        
         this.analyzePhotoBtn.addEventListener('click', () => this.analyzeUploadedPhoto());
         this.clearPhotoBtn.addEventListener('click', () => this.clearUploadedPhoto());
 
@@ -597,6 +603,12 @@ class BookshelfScanner {
     }
 
     setupDragAndDrop() {
+        // Prevent adding duplicate event listeners
+        if (this.uploadArea.hasAttribute('data-drag-setup')) {
+            return;
+        }
+        this.uploadArea.setAttribute('data-drag-setup', 'true');
+
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             this.uploadArea.addEventListener(eventName, this.preventDefaults, false);
         });
