@@ -1,8 +1,0 @@
-{
-  "name": "heic-converter",
-  "version": "1.0.0",
-  "type": "commonjs",
-  "dependencies": {
-    "sharp": "^0.33.0"
-  }
-}

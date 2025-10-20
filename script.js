@@ -436,11 +436,13 @@ class BookshelfScanner {
             }
         }
         
-        // Method 2: Try server-side conversion (most reliable)
-        console.log('Trying server-side HEIC conversion...');
+        // Method 2: Try server-side conversion with Python (most reliable)
+        console.log('Trying server-side HEIC conversion with Python...');
         try {
             const dataUrl = await this.fileToDataURL(file);
-            const response = await fetch('/api/convert-heic', {
+            
+            // Try Vercel Python function first
+            let response = await fetch('/api/convert-heic.py', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -448,16 +450,28 @@ class BookshelfScanner {
                 body: JSON.stringify({ imageData: dataUrl })
             });
             
+            // If Vercel fails, try local Python server
+            if (!response.ok && window.location.hostname === 'localhost') {
+                console.log('Vercel function failed, trying local Python server...');
+                response = await fetch('http://localhost:8080/api/convert-heic', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ imageData: dataUrl })
+                });
+            }
+            
             if (response.ok) {
                 const result = await response.json();
                 if (result.success) {
-                    console.log('✅ Server-side HEIC conversion successful');
+                    console.log('✅ Python server-side HEIC conversion successful');
                     return result.dataUrl;
                 }
             }
-            console.log('Server-side conversion failed:', response.status);
+            console.log('Python server-side conversion failed:', response.status);
         } catch (serverError) {
-            console.log('Server-side conversion error:', serverError.message);
+            console.log('Python server-side conversion error:', serverError.message);
         }
         
         // Method 3: Try to use the file as-is (sometimes works)
