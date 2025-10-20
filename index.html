@@ -4,17 +4,93 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bookshelf Scanner</title>
-    <link rel="stylesheet" href="styles.css?v=9">
+    <link rel="stylesheet" href="styles.css?v=10">
     <!-- No need for Tesseract anymore - using OpenAI Vision API -->
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>📚 Bookshelf Scanner</h1>
-            <p>Scan and catalog your books with ease</p>
+            <div class="header-content">
+                <div class="header-text">
+                    <h1>📚 Bookshelf Scanner</h1>
+                    <p>Scan and catalog your books with ease</p>
+                </div>
+                <div class="header-actions">
+                    <div id="userInfo" class="user-info" style="display: none;">
+                        <span id="userEmail"></span>
+                        <button id="logoutBtn" class="btn btn-secondary logout-btn">
+                            <span class="icon">🚪</span>
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
         </header>
 
-        <main>
+        <!-- Authentication Section -->
+        <section class="auth-section" id="authSection">
+            <div class="auth-container">
+                <div class="auth-tabs">
+                    <button id="loginTab" class="auth-tab-btn active">Sign In</button>
+                    <button id="signupTab" class="auth-tab-btn">Sign Up</button>
+                </div>
+
+                <!-- Login Form -->
+                <div id="loginForm" class="auth-form">
+                    <h2>Welcome Back</h2>
+                    <p>Sign in to access your bookshelf scanner</p>
+                    <form id="loginFormElement">
+                        <div class="form-group">
+                            <label for="loginEmail">Email</label>
+                            <input type="email" id="loginEmail" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="loginPassword">Password</label>
+                            <input type="password" id="loginPassword" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary auth-btn">
+                            <span class="icon">🔑</span>
+                            Sign In
+                        </button>
+                    </form>
+                    <div id="loginError" class="error-message"></div>
+                </div>
+
+                <!-- Signup Form -->
+                <div id="signupForm" class="auth-form" style="display: none;">
+                    <h2>Create Account</h2>
+                    <p>Join us to start scanning your bookshelf</p>
+                    <form id="signupFormElement">
+                        <div class="form-group">
+                            <label for="signupEmail">Email</label>
+                            <input type="email" id="signupEmail" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="signupPassword">Password</label>
+                            <input type="password" id="signupPassword" required minlength="6">
+                        </div>
+                        <div class="form-group">
+                            <label for="confirmPassword">Confirm Password</label>
+                            <input type="password" id="confirmPassword" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary auth-btn">
+                            <span class="icon">📝</span>
+                            Create Account
+                        </button>
+                    </form>
+                    <div id="signupError" class="error-message"></div>
+                </div>
+
+                <!-- Email Verification Message -->
+                <div id="verificationMessage" class="verification-message" style="display: none;">
+                    <h3>📧 Check Your Email</h3>
+                    <p>We've sent a verification link to your email address. Please check your inbox and click the link to verify your account.</p>
+                    <button id="resendVerification" class="btn btn-secondary">Resend Verification Email</button>
+                </div>
+            </div>
+        </section>
+
+        <main id="mainApp" style="display: none;">
             <!-- Camera Section -->
             <section class="camera-section">
                 <div class="input-options">
@@ -167,10 +243,38 @@
         </main>
     </div>
 
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendEmailVerification } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        
+        // Your Firebase config (you'll need to replace these with your actual config)
+        const firebaseConfig = {
+            apiKey: "your-api-key",
+            authDomain: "your-project.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "your-app-id"
+        };
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        
+        // Make auth available globally
+        window.auth = auth;
+        window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+        window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+        window.signOut = signOut;
+        window.onAuthStateChanged = onAuthStateChanged;
+        window.sendEmailVerification = sendEmailVerification;
+    </script>
+    
     <!-- HEIC to JPEG conversion libraries -->
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js" 
             onerror="console.error('Failed to load heic2any library')"></script>
     <!-- Note: heic-convert and heic-js libraries are not available via CDN, skipping them -->
-    <script src="script.js?v=9"></script>
+    <script src="script.js?v=10"></script>
 </body>
 </html>

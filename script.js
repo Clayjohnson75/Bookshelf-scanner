@@ -1,3 +1,189 @@
+// Authentication Manager
+class AuthManager {
+    constructor() {
+        this.auth = null;
+        this.currentUser = null;
+        this.init();
+    }
+
+    async init() {
+        // Wait for Firebase to load
+        while (!window.auth) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        this.auth = window.auth;
+        this.setupAuthListeners();
+        this.setupAuthUI();
+    }
+
+    setupAuthListeners() {
+        window.onAuthStateChanged(this.auth, (user) => {
+            this.currentUser = user;
+            this.updateUI(user);
+        });
+    }
+
+    setupAuthUI() {
+        // Tab switching
+        document.getElementById('loginTab').addEventListener('click', () => this.switchTab('login'));
+        document.getElementById('signupTab').addEventListener('click', () => this.switchTab('signup'));
+        
+        // Form submissions
+        document.getElementById('loginFormElement').addEventListener('submit', (e) => this.handleLogin(e));
+        document.getElementById('signupFormElement').addEventListener('submit', (e) => this.handleSignup(e));
+        
+        // Logout
+        document.getElementById('logoutBtn').addEventListener('click', () => this.handleLogout());
+        
+        // Resend verification
+        document.getElementById('resendVerification').addEventListener('click', () => this.resendVerification());
+    }
+
+    switchTab(tab) {
+        const loginTab = document.getElementById('loginTab');
+        const signupTab = document.getElementById('signupTab');
+        const loginForm = document.getElementById('loginForm');
+        const signupForm = document.getElementById('signupForm');
+        
+        if (tab === 'login') {
+            loginTab.classList.add('active');
+            signupTab.classList.remove('active');
+            loginForm.style.display = 'block';
+            signupForm.style.display = 'none';
+        } else {
+            signupTab.classList.add('active');
+            loginTab.classList.remove('active');
+            signupForm.style.display = 'block';
+            loginForm.style.display = 'none';
+        }
+        
+        this.clearErrors();
+    }
+
+    async handleLogin(e) {
+        e.preventDefault();
+        this.clearErrors();
+        
+        const email = document.getElementById('loginEmail').value;
+        const password = document.getElementById('loginPassword').value;
+        
+        try {
+            await window.signInWithEmailAndPassword(this.auth, email, password);
+            // Success handled by auth state change
+        } catch (error) {
+            this.showError('loginError', this.getErrorMessage(error));
+        }
+    }
+
+    async handleSignup(e) {
+        e.preventDefault();
+        this.clearErrors();
+        
+        const email = document.getElementById('signupEmail').value;
+        const password = document.getElementById('signupPassword').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        
+        if (password !== confirmPassword) {
+            this.showError('signupError', 'Passwords do not match');
+            return;
+        }
+        
+        if (password.length < 6) {
+            this.showError('signupError', 'Password must be at least 6 characters');
+            return;
+        }
+        
+        try {
+            const userCredential = await window.createUserWithEmailAndPassword(this.auth, email, password);
+            await window.sendEmailVerification(userCredential.user);
+            this.showVerificationMessage();
+        } catch (error) {
+            this.showError('signupError', this.getErrorMessage(error));
+        }
+    }
+
+    async handleLogout() {
+        try {
+            await window.signOut(this.auth);
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+    }
+
+    async resendVerification() {
+        if (this.currentUser) {
+            try {
+                await window.sendEmailVerification(this.currentUser);
+                alert('Verification email sent!');
+            } catch (error) {
+                console.error('Resend verification error:', error);
+            }
+        }
+    }
+
+    updateUI(user) {
+        const authSection = document.getElementById('authSection');
+        const mainApp = document.getElementById('mainApp');
+        const userInfo = document.getElementById('userInfo');
+        const userEmail = document.getElementById('userEmail');
+        
+        if (user) {
+            // User is signed in
+            authSection.style.display = 'none';
+            mainApp.style.display = 'block';
+            userInfo.style.display = 'flex';
+            userEmail.textContent = user.email;
+            
+            // Initialize the bookshelf scanner
+            if (!window.bookshelfScanner) {
+                window.bookshelfScanner = new BookshelfScanner();
+            }
+        } else {
+            // User is signed out
+            authSection.style.display = 'block';
+            mainApp.style.display = 'none';
+            userInfo.style.display = 'none';
+        }
+    }
+
+    showError(elementId, message) {
+        const errorElement = document.getElementById(elementId);
+        errorElement.textContent = message;
+        errorElement.classList.add('show');
+    }
+
+    clearErrors() {
+        document.getElementById('loginError').classList.remove('show');
+        document.getElementById('signupError').classList.remove('show');
+    }
+
+    showVerificationMessage() {
+        document.getElementById('loginForm').style.display = 'none';
+        document.getElementById('signupForm').style.display = 'none';
+        document.getElementById('verificationMessage').style.display = 'block';
+    }
+
+    getErrorMessage(error) {
+        switch (error.code) {
+            case 'auth/user-not-found':
+                return 'No account found with this email address';
+            case 'auth/wrong-password':
+                return 'Incorrect password';
+            case 'auth/email-already-in-use':
+                return 'An account with this email already exists';
+            case 'auth/weak-password':
+                return 'Password is too weak';
+            case 'auth/invalid-email':
+                return 'Invalid email address';
+            case 'auth/too-many-requests':
+                return 'Too many failed attempts. Please try again later';
+            default:
+                return error.message;
+        }
+    }
+}
+
 // Enhanced Bookshelf Scanner with Real-time Detection
 class BookshelfScanner {
     constructor() {
@@ -2708,9 +2894,10 @@ Be thorough but accurate. Better to include questionable titles with low confide
 }
 
 // Initialize the application when the page loads
+let authManager;
 let bookshelfScanner;
 
 document.addEventListener('DOMContentLoaded', () => {
-    bookshelfScanner = new BookshelfScanner();
-    console.log('Enhanced Bookshelf Scanner initialized');
+    authManager = new AuthManager();
+    console.log('Authentication system initialized');
 });
