@@ -341,28 +341,55 @@ class BookshelfScanner {
     }
 
     getHEICErrorMessage() {
-        return `
-            📱 HEIC Conversion Failed
-            
-            This HEIC file couldn't be converted to JPEG automatically.
-            
-            🖼️  EASIEST SOLUTION: Take a screenshot instead
-            • Press CMD+Shift+4 (Mac) or Windows+Shift+S (PC)
-            • Select the area with your books
-            • Upload the screenshot (works 100% of the time!)
-            
-            📱 OR: Convert in Photos app
-            • Open Photos app → Select your photo
-            • Share → Copy Photo (creates JPEG version)
-            • Upload the copied photo
-            
-            💾 OR: Export as JPEG
-            • Photos app → Select photo → File → Export
-            • Choose JPEG format → Save
-            • Upload the exported file
-            
-            The screenshot method is the most reliable! 📸
-        `;
+        const isDeployed = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+        
+        if (isDeployed) {
+            return `
+                📱 HEIC Files Not Supported Online
+                
+                HEIC conversion doesn't work in the online version of this app.
+                
+                🖼️  EASIEST SOLUTION: Take a screenshot instead
+                • Press CMD+Shift+4 (Mac) or Windows+Shift+S (PC)
+                • Select the area with your books
+                • Upload the screenshot (works 100% of the time!)
+                
+                📱 OR: Convert in Photos app
+                • Open Photos app → Select your photo
+                • Share → Copy Photo (creates JPEG version)
+                • Upload the copied photo
+                
+                💾 OR: Export as JPEG
+                • Photos app → Select photo → File → Export
+                • Choose JPEG format → Save
+                • Upload the exported file
+                
+                The screenshot method is the most reliable! 📸
+            `;
+        } else {
+            return `
+                📱 HEIC Conversion Failed
+                
+                This HEIC file couldn't be converted to JPEG automatically.
+                
+                🖼️  EASIEST SOLUTION: Take a screenshot instead
+                • Press CMD+Shift+4 (Mac) or Windows+Shift+S (PC)
+                • Select the area with your books
+                • Upload the screenshot (works 100% of the time!)
+                
+                📱 OR: Convert in Photos app
+                • Open Photos app → Select your photo
+                • Share → Copy Photo (creates JPEG version)
+                • Upload the copied photo
+                
+                💾 OR: Export as JPEG
+                • Photos app → Select photo → File → Export
+                • Choose JPEG format → Save
+                • Upload the exported file
+                
+                The screenshot method is the most reliable! 📸
+            `;
+        }
     }
 
     // Method 1: Try heic2any library (original method)
@@ -1039,21 +1066,9 @@ class BookshelfScanner {
                             }
                         }
                         
-                        // Last resort: try to use the file as-is and let the AI handle it
-                        console.log('🔄 Last resort: attempting to use HEIC file as-is...');
-                        try {
-                            const reader = new FileReader();
-                            return new Promise((resolve, reject) => {
-                                reader.onload = (e) => {
-                                    console.log('⚠️ Using HEIC file as-is (may not work with AI)');
-                                    resolve(e.target.result);
-                                };
-                                reader.onerror = () => reject(new Error(this.getHEICErrorMessage()));
-                                reader.readAsDataURL(file);
-                            });
-                        } catch (error) {
-                            return Promise.reject(new Error(this.getHEICErrorMessage()));
-                        }
+                            // Last resort: HEIC files cannot be processed in deployed environment
+                            console.log('🔄 HEIC conversion failed in deployed environment');
+                            throw new Error(this.getHEICErrorMessage());
                     }
                 }
             }
