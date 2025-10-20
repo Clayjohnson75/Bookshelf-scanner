@@ -345,11 +345,12 @@ class BookshelfScanner {
         
         if (isDeployed) {
             return `
-                📱 HEIC Files Not Supported Online
+                📱 HEIC Conversion Failed
                 
-                HEIC conversion doesn't work in the online version of this app.
+                We tried multiple conversion methods but couldn't convert this HEIC file.
+                This sometimes happens with certain HEIC files or older browsers.
                 
-                🖼️  EASIEST SOLUTION: Take a screenshot instead
+                🖼️  QUICK FIX: Take a screenshot instead
                 • Press CMD+Shift+4 (Mac) or Windows+Shift+S (PC)
                 • Select the area with your books
                 • Upload the screenshot (works 100% of the time!)
@@ -364,7 +365,7 @@ class BookshelfScanner {
                 • Choose JPEG format → Save
                 • Upload the exported file
                 
-                The screenshot method is the most reliable! 📸
+                Screenshots are the most reliable method! 📸
             `;
         } else {
             return `
@@ -505,6 +506,56 @@ class BookshelfScanner {
             reader.onerror = () => reject(new Error('Failed to read file'));
             reader.readAsDataURL(file);
         });
+    }
+
+    // Method 5: Try heic-convert library
+    async convertWithHeicConvert(file) {
+        console.log('Trying heic-convert library...');
+        if (typeof heicConvert === 'undefined') {
+            throw new Error('heic-convert library not available');
+        }
+        
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const jpegBuffer = await heicConvert({
+                buffer: arrayBuffer,
+                format: 'JPEG',
+                quality: 0.9
+            });
+            
+            const blob = new Blob([jpegBuffer], { type: 'image/jpeg' });
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = () => reject(new Error('Failed to read converted JPEG'));
+                reader.readAsDataURL(blob);
+            });
+        } catch (error) {
+            throw new Error('heic-convert conversion failed: ' + error.message);
+        }
+    }
+
+    // Method 6: Try heic-js library
+    async convertWithHeicJs(file) {
+        console.log('Trying heic-js library...');
+        if (typeof HEIC === 'undefined') {
+            throw new Error('heic-js library not available');
+        }
+        
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const jpegBuffer = HEIC.decode(arrayBuffer);
+            
+            const blob = new Blob([jpegBuffer], { type: 'image/jpeg' });
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = () => reject(new Error('Failed to read converted JPEG'));
+                reader.readAsDataURL(blob);
+            });
+        } catch (error) {
+            throw new Error('heic-js conversion failed: ' + error.message);
+        }
     }
 
     initializeElements() {
@@ -1012,15 +1063,17 @@ class BookshelfScanner {
             // Detect if we're in deployed environment (no local server)
             const isDeployed = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
             
-            // Try multiple conversion methods
-            const conversionMethods = [
-                () => this.convertWithHeic2any(file),
-                ...(isDeployed ? [] : [() => this.convertWithServerSide(file)]), // Skip server-side in deployed
-                () => this.convertWithCanvas(file),
-                () => this.convertWithBrowserNative(file)
-            ];
-            
-            const methodNames = ['heic2any', ...(isDeployed ? [] : ['server-side']), 'canvas', 'browser-native'];
+                // Try multiple conversion methods
+                const conversionMethods = [
+                    () => this.convertWithHeic2any(file),
+                    () => this.convertWithHeicConvert(file),
+                    () => this.convertWithHeicJs(file),
+                    ...(isDeployed ? [] : [() => this.convertWithServerSide(file)]), // Skip server-side in deployed
+                    () => this.convertWithCanvas(file),
+                    () => this.convertWithBrowserNative(file)
+                ];
+                
+                const methodNames = ['heic2any', 'heic-convert', 'heic-js', ...(isDeployed ? [] : ['server-side']), 'canvas', 'browser-native'];
             
             for (let i = 0; i < conversionMethods.length; i++) {
                 try {
