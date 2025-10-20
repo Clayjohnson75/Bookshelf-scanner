@@ -1,7 +1,8 @@
 {
   "name": "bookshelf-scanner-api",
   "version": "1.0.0",
-  "dependencies": {
-    "sharp": "^0.32.6"
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
   }
 }

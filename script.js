@@ -448,6 +448,8 @@ class BookshelfScanner {
                 console.log('✅ Server-side HEIC conversion successful');
                 return result.jpegDataUrl;
             } else {
+                // Server-side conversion not available, fall back to error message
+                console.log('Server-side conversion not available:', result.error);
                 throw new Error(result.error || 'Server conversion failed');
             }
             

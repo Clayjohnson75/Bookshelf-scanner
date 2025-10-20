@@ -1,7 +1,7 @@
 // Vercel serverless function for HEIC to JPEG conversion
-import sharp from 'sharp';
+// Using a simpler approach without Sharp to avoid build issues
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -17,28 +17,12 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Get the file from the request
-        const { file } = req.body;
-        
-        if (!file) {
-            return res.status(400).json({ error: 'No file provided' });
-        }
-
-        // Convert base64 to buffer
-        const fileBuffer = Buffer.from(file.split(',')[1], 'base64');
-        
-        // Use Sharp to convert HEIC to JPEG
-        const jpegBuffer = await sharp(fileBuffer)
-            .jpeg({ quality: 90 })
-            .toBuffer();
-        
-        // Convert back to base64 data URL
-        const jpegBase64 = jpegBuffer.toString('base64');
-        const jpegDataUrl = `data:image/jpeg;base64,${jpegBase64}`;
-        
-        res.status(200).json({
-            success: true,
-            jpegDataUrl: jpegDataUrl
+        // For now, return an error that suggests using client-side conversion
+        // This avoids build issues while we work on a better solution
+        res.status(501).json({
+            success: false,
+            error: 'Server-side HEIC conversion not yet implemented. Please use client-side conversion or convert your HEIC file to JPEG manually.',
+            suggestion: 'Try taking a screenshot instead (CMD+Shift+4 on Mac)'
         });
         
     } catch (error) {
