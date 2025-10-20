@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bookshelf Scanner</title>
+    <link rel="stylesheet" href="styles.css?v=9">
+    <!-- No need for Tesseract anymore - using OpenAI Vision API -->
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 Bookshelf Scanner</h1>
+            <p>Scan and catalog your books with ease</p>
+        </header>
+
+        <main>
+            <!-- Camera Section -->
+            <section class="camera-section">
+                <div class="input-options">
+                    <div class="input-tabs">
+                        <button id="cameraTab" class="tab-btn active">📷 Live Camera</button>
+                        <button id="photoTab" class="tab-btn">📁 Upload Photo</button>
+                    </div>
+                </div>
+
+                <!-- Camera View -->
+                <div id="cameraView" class="input-view">
+                    <div class="camera-container">
+                        <video id="video" autoplay playsinline></video>
+                        <canvas id="canvas" style="display: none;"></canvas>
+                        <div class="camera-overlay" id="cameraOverlay">
+                            <div class="detection-overlay" id="detectionOverlay"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="camera-controls">
+                        <button id="startCamera" class="btn btn-primary">
+                            <span class="icon">📷</span>
+                            Start Camera
+                        </button>
+                        <button id="toggleDetection" class="btn btn-secondary" disabled>
+                            <span class="icon">🔍</span>
+                            Start Detection
+                        </button>
+                        <button id="stopCamera" class="btn btn-danger" disabled>
+                            <span class="icon">⏹️</span>
+                            Stop Camera
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Photo Upload View -->
+                <div id="photoView" class="input-view" style="display: none;">
+                    <div class="upload-container">
+                        <input type="file" id="photoInput" accept="image/*" style="display: none;">
+                        <div class="upload-area" id="uploadArea">
+                            <div class="upload-content">
+                                <span class="upload-icon">📷</span>
+                                <h3>Upload Bookshelf Photo</h3>
+                                <p>Click to select or drag and drop an image of your bookshelf</p>
+                                <button class="btn btn-primary" onclick="document.getElementById('photoInput').click()">
+                                    <span class="icon">📁</span>
+                                    Select Photo
+                                </button>
+                            </div>
+                        </div>
+                        <div class="uploaded-image-container" id="uploadedImageContainer" style="display: none;">
+                            <img id="uploadedImage" alt="Uploaded bookshelf">
+                            <div class="image-overlay" id="imageOverlay"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="photo-controls" style="display: none;" id="photoControls">
+                        <button id="analyzePhoto" class="btn btn-primary">
+                            <span class="icon">🔍</span>
+                            Analyze Bookshelf
+                        </button>
+                        <button id="clearPhoto" class="btn btn-secondary">
+                            <span class="icon">🗑️</span>
+                            Clear Photo
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Processing Section -->
+            <section class="processing-section" style="display: none;">
+                <div class="processing-container">
+                    <div class="captured-image-container">
+                        <img id="capturedImage" alt="Captured book">
+                    </div>
+                    <div class="processing-status">
+                        <div class="spinner"></div>
+                        <p id="processingText">Processing image...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section" style="display: none;">
+                <div class="book-details" id="bookDetails" style="display: none;">
+                    <h3>Book Information</h3>
+                    <div class="book-info">
+                        <div class="book-cover">
+                            <img id="bookCover" alt="Book cover">
+                        </div>
+                        <div class="book-metadata">
+                            <h4 id="bookTitle"></h4>
+                            <p class="author" id="bookAuthor"></p>
+                            <p class="isbn" id="bookISBN"></p>
+                            <p class="published" id="bookPublished"></p>
+                            <p class="description" id="bookDescription"></p>
+                        </div>
+                    </div>
+                    <div class="book-actions">
+                        <button id="addToLibrary" class="btn btn-success">
+                            <span class="icon">➕</span>
+                            Add to Library
+                        </button>
+                        <button id="scanAnother" class="btn btn-primary">
+                            <span class="icon">🔄</span>
+                            Scan Another
+                        </button>
+                    </div>
+                </div>
+
+                <div class="extracted-text" id="extractedText" style="display: none;">
+                    <h3>Extracted Text</h3>
+                    <div class="text-content">
+                        <textarea id="ocrResult" readonly></textarea>
+                    </div>
+                    <button id="searchBooks" class="btn btn-primary">
+                        <span class="icon">🔍</span>
+                        Search for Book
+                    </button>
+                </div>
+            </section>
+
+            <!-- Library Section -->
+            <section class="library-section">
+                <div class="library-header">
+                    <div class="library-title-section">
+                        <h3>My Library (<span id="bookCount">0</span> books)</h3>
+                        <div class="library-search">
+                            <input type="text" id="librarySearch" placeholder="Search books by title or author..." class="search-input">
+                            <span class="search-icon">🔍</span>
+                        </div>
+                    </div>
+                    <div class="library-actions">
+                        <button id="exportLibrary" class="btn btn-secondary">
+                            <span class="icon">📤</span>
+                            Export Library
+                        </button>
+                        <button id="clearLibrary" class="btn btn-danger">
+                            <span class="icon">🗑️</span>
+                            Clear Library
+                        </button>
+                    </div>
+                </div>
+                <div class="library-grid" id="libraryGrid">
+                    <div class="empty-library">
+                        <p>No books scanned yet. Start by scanning your first book!</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- HEIC to JPEG conversion libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js" 
+            onerror="console.error('Failed to load heic2any library')"></script>
+    <!-- Note: heic-convert and heic-js libraries are not available via CDN, skipping them -->
+    <script src="script.js?v=9"></script>
+</body>
+</html>

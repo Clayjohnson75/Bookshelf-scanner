@@ -1,0 +1,16 @@
+{
+  "name": "bookshelf-scanner",
+  "version": "1.0.0",
+  "description": "A web application to scan and catalog books from your bookshelf",
+  "main": "index.html",
+  "scripts": {
+    "start": "python -m http.server 8080",
+    "dev": "python -m http.server 8080"
+  },
+  "keywords": ["books", "scanner", "ocr", "catalog", "bookshelf"],
+  "author": "Clay Johnson",
+  "license": "MIT",
+  "dependencies": {
+    "tesseract.js": "^4.1.1"
+  }
+}
