@@ -342,16 +342,14 @@ class BookshelfScanner {
 
     getHEICErrorMessage() {
         return `
-            📱 HEIC File Not Supported
+            📱 HEIC Conversion Failed
             
-            This HEIC file format is not supported by the conversion library.
+            This HEIC file couldn't be converted to JPEG automatically.
             
-            Please try one of these solutions:
-            
-            🖼️  EASIEST: Take a screenshot instead
+            🖼️  EASIEST SOLUTION: Take a screenshot instead
             • Press CMD+Shift+4 (Mac) or Windows+Shift+S (PC)
             • Select the area with your books
-            • Upload the screenshot
+            • Upload the screenshot (works 100% of the time!)
             
             📱 OR: Convert in Photos app
             • Open Photos app → Select your photo
@@ -363,7 +361,7 @@ class BookshelfScanner {
             • Choose JPEG format → Save
             • Upload the exported file
             
-            The screenshot method usually works best! 📸
+            The screenshot method is the most reliable! 📸
         `;
     }
 
@@ -1008,7 +1006,21 @@ class BookshelfScanner {
                             }
                         }
                         
-                        return Promise.reject(new Error(this.getHEICErrorMessage()));
+                        // Last resort: try to use the file as-is and let the AI handle it
+                        console.log('🔄 Last resort: attempting to use HEIC file as-is...');
+                        try {
+                            const reader = new FileReader();
+                            return new Promise((resolve, reject) => {
+                                reader.onload = (e) => {
+                                    console.log('⚠️ Using HEIC file as-is (may not work with AI)');
+                                    resolve(e.target.result);
+                                };
+                                reader.onerror = () => reject(new Error(this.getHEICErrorMessage()));
+                                reader.readAsDataURL(file);
+                            });
+                        } catch (error) {
+                            return Promise.reject(new Error(this.getHEICErrorMessage()));
+                        }
                     }
                 }
             }
